@@ -70,8 +70,21 @@ import { ScientificReport } from "./components/ScientificReport";
 import { AuroriaWorkspace } from "./components/AuroriaWorkspace";
 import { GmailAuthPortal } from "./components/GmailAuthPortal";
 import { GmailUser } from "./types";
+import { auth } from "./lib/firebase";
 
 type Language = "es" | "en";
+
+const cleanMarkdownHttps = (md: string | null | undefined): string => {
+  if (!md) return "";
+  return md.replace(/(!?\[[^\]]*\]\([^\)]+\))|(https?:\/\/\S+)/g, (match, link) => {
+    if (link) {
+      return link.replace(/\[(https?:\/\/)?([^\]]+)\]/gi, (m, prefix, inner) => {
+        return `[${inner.replace(/https?:\/\//gi, "")}]`;
+      });
+    }
+    return match.replace(/https?:\/\//gi, "");
+  });
+};
 
 export default function App() {
   const [lang, setLang] = useState<Language>("es");
@@ -404,6 +417,7 @@ export default function App() {
 
                         <button
                           onClick={() => {
+                            auth.signOut().catch(console.error);
                             localStorage.removeItem("xochimilco_logged_user");
                             const activeSessionAccounts = (JSON.parse(localStorage.getItem("xochimilco_session_accounts") || "[]") as GmailUser[])
                               .filter(u => u.id !== currentUser.id);
@@ -426,6 +440,7 @@ export default function App() {
 
                         <button
                           onClick={() => {
+                            auth.signOut().catch(console.error);
                             localStorage.removeItem("xochimilco_logged_user");
                             localStorage.removeItem("xochimilco_session_accounts");
                             setCurrentUser(null);
@@ -1155,20 +1170,32 @@ export default function App() {
                       <div className="prose prose-invert prose-xl max-w-none prose-headings:font-serif prose-headings:text-primary prose-headings:tracking-tighter prose-headings:text-4xl prose-p:leading-[1.8] prose-p:text-justify prose-li:marker:text-primary prose-strong:text-primary/90 prose-a:text-accent prose-a:font-bold hover:prose-a:text-primary prose-a:transition-colors prose-a:no-underline hover:prose-a:underline">
                         <ReactMarkdown 
                           components={{
-                            a: ({ node, ...props }) => (
-                              <a 
-                                {...props} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="inline-flex items-center gap-1 group text-accent hover:text-primary transition-colors font-bold"
-                              >
-                                {props.children}
-                                <ExternalLink className="w-3 h-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                              </a>
-                            ),
+                            a: ({ node, ...props }) => {
+                              const cleanText = (val: React.ReactNode): React.ReactNode => {
+                                if (!val) return val;
+                                if (typeof val === "string") {
+                                  return val.replace(/https?:\/\//gi, "");
+                                }
+                                if (Array.isArray(val)) {
+                                  return val.map((item, idx) => typeof item === "string" ? item.replace(/https?:\/\//gi, "") : item);
+                                }
+                                return val;
+                              };
+                              return (
+                                <a 
+                                  {...props} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="inline-flex items-center gap-1 group text-accent hover:text-primary transition-colors font-bold"
+                                >
+                                  {cleanText(props.children)}
+                                  <ExternalLink className="w-3 h-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                                </a>
+                              );
+                            },
                           }}
                         >
-                          {result}
+                          {cleanMarkdownHttps(result)}
                         </ReactMarkdown>
                       </div>
 

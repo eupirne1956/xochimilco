@@ -624,7 +624,7 @@ export function MosSpectrumChart({
           </div>
 
           {/* Mathematical formulation block with detailed legends */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 bg-black/30 p-6 rounded-[2rem] border border-white/5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-black/30 p-6 rounded-[2rem] border border-white/5">
             <div className="space-y-4">
               <h6 className="font-sans font-bold text-xs text-white uppercase tracking-wider">
                 {lang === "es" ? "1. Ecuación Principal y Derivaciones" : "1. Core Equation & Derivations"}

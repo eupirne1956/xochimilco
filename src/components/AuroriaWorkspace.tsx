@@ -31,14 +31,27 @@ import ReactMarkdown from "react-markdown";
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import { ScientificReport } from "./ScientificReport";
 import { MosSpectrumChart } from "./MosSpectrumChart";
+import { PhytoReactorEngine } from "./PhytoReactorEngine";
 import { generateAuroriaReport, searchBotanicalDatabase, resolveScientificName, getPubChemCompoundData, auditAndApplyPubChemLinks, auditAndApplyPubChemLinksAsync, type PubChemCompoundData } from "../services/gemini";
+
+const cleanMarkdownHttps = (md: string | null | undefined): string => {
+  if (!md) return "";
+  return md.replace(/(!?\[[^\]]*\]\([^\)]+\))|(https?:\/\/\S+)/g, (match, link) => {
+    if (link) {
+      return link.replace(/\[(https?:\/\/)?([^\]]+)\]/gi, (m, prefix, inner) => {
+        return `[${inner.replace(/https?:\/\//gi, "")}]`;
+      });
+    }
+    return match.replace(/https?:\/\//gi, "");
+  });
+};
 
 const ta = {
   es: {
     badge: "Módulo AurorIA v4.0 Activo",
     title: "Asistente Científico",
     subtitle: "Plataforma herbolaria regulatoria de análisis fitoquímico e in silico para evaluación de seguridad conformes a la",
-    nom: "NOM-073-SSA1-2015",
+    nom: "NOM-073-SSA1-2015, SCCS (Scientific Committee on Consumer Safety) (2023) y Organización Mundial de la Salud (WHO) (2010) (WHO Guidelines on Assessing Quality of Herbal Medicines with Reference to Contaminants and Residues)",
     profiles_title: "Perfiles & Marcadores",
     profiles_desc: "Establece la fitoquímica del espécimen vegetal",
     new_study: "Nuevo Estudio",
@@ -66,7 +79,7 @@ const ta = {
     badge: "AurorIA v4.0 Module Active",
     title: "Scientific Assistant",
     subtitle: "Regulatory herbal platform for phytochemical and in silico safety evaluations fully compliant with",
-    nom: "NOM-073-SSA1-2015",
+    nom: "NOM-073-SSA1-2015, SCCS (Scientific Committee on Consumer Safety) (2023) and World Health Organization (WHO) (2010) (WHO Guidelines on Assessing Quality of Herbal Medicines with Reference to Contaminants and Residues)",
     profiles_title: "Profiles & Markers",
     profiles_desc: "Set the herbal specimen's phytochemistry",
     new_study: "New Study",
@@ -2279,35 +2292,8 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
                   </>
                 )}
               </div>
-
-              {/* Action Trigger Button */}
-              <div className="pt-4 flex justify-center">
-                <Button 
-                  size="lg"
-                  disabled={loading}
-                  onClick={() => startAnalysis()}
-                  className="w-full h-18 text-base rounded-[2rem] bg-indigo-650 hover:bg-indigo-700 font-extrabold tracking-tight shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 cursor-pointer text-white flex items-center justify-center gap-3 relative group"
-                >
-                  <Activity className="w-5 h-5 text-white animate-pulse shrink-0" />
-                  {loading 
-                    ? (lang === "es" ? "Simulando e Invocando Modelos..." : "Simulating & Auditing Chemical Pathways...") 
-                    : (lang === "es" ? "Generar Reporte Científico Regulatorio" : "Generate Scientific Regulatory Report")}
-                  <ChevronRight className="w-5 h-5 shrink-0 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </div>
             </CardContent>
           </Card>
-
-          {/* SCCS & NOM Margin of Safety spectrum visualization */}
-          <MosSpectrumChart 
-            mos={mos} 
-            noael={parseVal(noael)} 
-            sed={sed} 
-            botanicalName={botanicalName} 
-            isApproved={isApproved} 
-            lang={lang} 
-            evaluationRoute={evaluationRoute}
-          />
 
           {/* Console / Log area if loading */}
           <AnimatePresence>
@@ -2316,13 +2302,21 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden animate-fade-in"
+                className="overflow-hidden animate-fade-in space-y-4"
               >
+                {loading && (
+                  <PhytoReactorEngine
+                    lang={lang}
+                    activeRoute={evaluationRoute}
+                    metaboliteName={selectedMetabolite}
+                  />
+                )}
+
                 <div className="p-8 rounded-[2.5rem] bg-slate-950/85 border border-primary/20 shadow-2xl font-mono text-xs text-left text-green-400 space-y-3 max-h-56 overflow-y-auto">
                   <div className="flex items-center justify-between border-b border-white/5 pb-2 text-primary font-bold">
                     <span className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-primary" />
-                      {lang === "es" ? "Consola de Análisis AurorIA" : "AurorIA Analysis Console"}
+                       <Sparkles className="w-4 h-4 text-primary" />
+                       {lang === "es" ? "Consola de Análisis AurorIA" : "AurorIA Analysis Console"}
                     </span>
                     <span className="text-[10px] bg-green-950 px-2 py-0.5 rounded text-green-400 animate-pulse font-mono">
                       {lang === "es" ? "EJECUTANDO... API SHIELD ACTIVO" : "RUNNING... API SHIELD ACTIVE"}
@@ -2350,6 +2344,17 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* SCCS & NOM Margin of Safety spectrum visualization - Stretched horizontally in the application */}
+      <MosSpectrumChart 
+        mos={mos} 
+        noael={parseVal(noael)} 
+        sed={sed} 
+        botanicalName={botanicalName} 
+        isApproved={isApproved} 
+        lang={lang} 
+        evaluationRoute={evaluationRoute}
+      />
 
       {/* SECTION 3: Generated Regulatory Scientific Report (Full Width) */}
       <AnimatePresence>
@@ -2416,20 +2421,32 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
                     <div className="prose prose-invert prose-lg max-w-none prose-headings:font-serif prose-headings:text-primary prose-headings:tracking-tighter prose-headings:text-3xl prose-p:leading-[1.7] prose-p:text-justify prose-li:marker:text-primary prose-strong:text-primary/90 prose-a:text-accent prose-a:font-bold hover:prose-a:text-primary">
                       <ReactMarkdown 
                         components={{
-                          a: ({ node, ...props }) => (
-                            <a 
-                              {...props} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="inline-flex items-center gap-1 group text-accent hover:text-primary transition-colors font-bold"
-                            >
-                              {props.children}
-                              <ExternalLink className="w-3 h-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                            </a>
-                          ),
+                          a: ({ node, ...props }) => {
+                            const cleanText = (val: React.ReactNode): React.ReactNode => {
+                              if (!val) return val;
+                              if (typeof val === "string") {
+                                return val.replace(/https?:\/\//gi, "");
+                              }
+                              if (Array.isArray(val)) {
+                                return val.map((item, idx) => typeof item === "string" ? item.replace(/https?:\/\//gi, "") : item);
+                              }
+                              return val;
+                            };
+                            return (
+                              <a 
+                                {...props} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="inline-flex items-center gap-1 group text-accent hover:text-primary transition-colors font-bold"
+                              >
+                                {cleanText(props.children)}
+                                <ExternalLink className="w-3 h-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                              </a>
+                            );
+                          },
                         }}
                       >
-                        {reportResult}
+                        {cleanMarkdownHttps(reportResult)}
                       </ReactMarkdown>
                     </div>
 
