@@ -1,0 +1,171 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&display=swap');
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-heading: 'Playfair Display', serif;
+    --font-sans: 'Inter', sans-serif;
+    --font-serif: 'Playfair Display', serif;
+    
+    --color-background: oklch(0.12 0.05 220);
+    --color-foreground: oklch(0.98 0.02 180);
+    
+    --color-primary: oklch(0.75 0.2 160);
+    --color-primary-foreground: oklch(0.1 0.05 220);
+    
+    --color-secondary: oklch(0.2 0.05 220);
+    --color-secondary-foreground: oklch(0.8 0.1 160);
+
+    --color-muted: oklch(0.18 0.04 220);
+    --color-muted-foreground: oklch(0.6 0.1 180);
+
+    --color-accent: oklch(0.65 0.2 240);
+    --color-accent-foreground: oklch(0.98 0.01 220);
+
+    --color-destructive: oklch(0.55 0.2 25);
+    --color-destructive-foreground: oklch(0.98 0.01 70);
+
+    --color-border: oklch(0.25 0.05 220);
+    --color-input: oklch(0.25 0.05 220);
+    --color-ring: oklch(0.7 0.25 160);
+
+    --color-card: oklch(0.15 0.06 220);
+    --color-card-foreground: oklch(0.95 0.02 180);
+
+    --color-popover: oklch(0.15 0.06 220);
+    --color-popover-foreground: oklch(0.95 0.02 180);
+    
+    --radius-lg: 1.5rem;
+    --radius-md: 1rem;
+    --radius-sm: 0.75rem;
+}
+
+:root {
+    --background: 220 50% 12%;
+    --foreground: 180 10% 98%;
+    --card: 220 40% 15%;
+    --card-foreground: 180 10% 95%;
+    --popover: 220 40% 15%;
+    --popover-foreground: 180 10% 95%;
+    --primary: 160 80% 70%;
+    --primary-foreground: 220 50% 10%;
+    --secondary: 220 30% 20%;
+    --secondary-foreground: 160 60% 70%;
+    --muted: 220 20% 18%;
+    --muted-foreground: 180 10% 60%;
+    --accent: 240 70% 65%;
+    --accent-foreground: 220 50% 98%;
+    --destructive: 0 84% 60%;
+    --border: 220 30% 25%;
+    --input: 220 30% 18%;
+    --ring: 160 80% 70%;
+    --radius: 1.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased overflow-x-hidden selection:bg-primary/20;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif font-semibold tracking-tight;
+  }
+}
+
+.botanical-gradient {
+  background: linear-gradient(135deg, oklch(0.85 0.15 160) 0%, oklch(0.75 0.15 240) 100%);
+  background-size: 200% 200%;
+  animation: gradientShift 10s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.glass-card {
+  @apply bg-card/40 backdrop-blur-xl border border-primary/20 shadow-2xl;
+}
+
+.soft-glow {
+  box-shadow: 0 10px 60px oklch(0.35 0.08 140 / 0.12);
+}
+
+.editorial-title {
+  @apply text-6xl md:text-8xl lg:text-[10rem] leading-[0.8] tracking-tighter;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+/* Scientific Grid Background */
+.scientific-grid {
+  background-size: 40px 40px;
+  background-image: 
+    radial-gradient(circle, oklch(0.2 0.02 120 / 0.05) 1px, transparent 1px);
+}
+
+.noise-overlay {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3%3Ffilter id='n' %3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+}
+
+/* Scanline Effect */
+.scanline {
+  width: 100%;
+  height: 100px;
+  z-index: 10;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, oklch(0.7 0.25 160 / 0.1) 50%, rgba(0, 0, 0, 0) 100%);
+  opacity: 0.1;
+  position: absolute;
+  bottom: 100%;
+  animation: scanline 8s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes scanline {
+  0% { bottom: 100%; }
+  100% { bottom: -100px; }
+}
+
+.cyber-glow {
+  filter: drop-shadow(0 0 10px oklch(0.7 0.25 160 / 0.5));
+}
+
+@keyframes float {
+  0% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-15px) rotate(2deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
+}
+
+.animate-float {
+  animation: float 8s ease-in-out infinite;
+}
+
+.micro-label {
+  @apply text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground;
+}
+
+/* Custom Scrollbar for Scientific Look */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-primary/20 rounded-full hover:bg-primary/40 transition-colors;
+}
+
+.bento-card {
+  @apply rounded-[2.5rem] bg-card/60 border border-border/50 p-8 hover:border-primary/30 transition-all duration-500 hover:shadow-2xl hover:-translate-y-1;
+}
