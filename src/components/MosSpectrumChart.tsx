@@ -231,8 +231,9 @@ export function MosSpectrumChart({
     }
   };
 
-  const rawActivePercent = mapMosToPercent(oralSafetyRatio);
-  const activePercent = Math.max(6, Math.min(94, rawActivePercent));
+  const hasNoData = mos === 0 && sed === 0;
+  const rawActivePercent = hasNoData ? 0 : mapMosToPercent(oralSafetyRatio);
+  const activePercent = hasNoData ? 6 : Math.max(6, Math.min(94, rawActivePercent));
 
   // Determine current active zone based on state
   const getCurrentZone = () => {
@@ -337,15 +338,15 @@ export function MosSpectrumChart({
                     exit={{ opacity: 0, scale: 0.95 }}
                     className="flex items-center gap-2 bg-gradient-to-r from-slate-900/80 to-slate-800/80 text-white rounded-xl px-3 py-1.5 border border-primary/30 text-xs font-mono select-none"
                   >
-                    <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: currentZone.accentColor }} />
-                    <span className="text-zinc-400 font-sans font-medium">
+                    <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: hasNoData ? "#f59e0b" : currentZone.accentColor }} />
+                    <span className="text-zinc-400 font-sans font-medium font-sans">
                       {botanicalName && botanicalName !== "Compuesto Puro" && botanicalName !== "Compuesto Puro / Pure Compound" && botanicalName !== "Pure Compound" ? `${botanicalName}: ` : ""}
                     </span>
-                    <strong style={{ color: currentZone.accentColor }} className="font-extrabold text-[13px]">
-                      {isOral ? `Factor ${oralSafetyRatio.toFixed(2)}x` : `MoS ${mos.toFixed(1)}`}
+                    <strong style={{ color: hasNoData ? "#f59e0b" : currentZone.accentColor }} className="font-extrabold text-[13px] font-mono">
+                      {hasNoData ? "---" : (isOral ? `Factor ${oralSafetyRatio.toFixed(2)}x` : `MoS ${mos.toFixed(1)}`)}
                     </strong>
-                    <span className="text-[10px] text-zinc-500">
-                      ({isApproved ? (lang === "es" ? "Seguro" : "Safe") : (lang === "es" ? "Riesgo" : "Risk")})
+                    <span className="text-[10px] text-zinc-500 font-sans">
+                      ({hasNoData ? (lang === "es" ? "Esperando" : "Awaiting") : isApproved ? (lang === "es" ? "Seguro" : "Safe") : (lang === "es" ? "Riesgo" : "Risk")})
                     </span>
                   </motion.div>
                 ) : (
@@ -435,7 +436,11 @@ export function MosSpectrumChart({
               <div className="w-1.5 h-full bg-white relative">
                 {/* Glowing light at top and bottom */}
                 <span className={`absolute -top-2.5 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center -translate-x-1.5 shadow-lg ${
-                  isApproved ? "bg-emerald-400 shadow-emerald-500/40 animate-pulse" : "bg-rose-500 shadow-rose-500/40 animate-pulse"
+                  hasNoData 
+                    ? "bg-amber-400 shadow-amber-500/20" 
+                    : isApproved 
+                      ? "bg-emerald-400 shadow-emerald-500/40 animate-pulse" 
+                      : "bg-rose-500 shadow-rose-500/40 animate-pulse"
                 }`} />
                 <span className="absolute -bottom-2 w-3 h-3 rounded-full bg-white -translate-x-0.5 shadow border border-black/25 font-sans" />
               </div>

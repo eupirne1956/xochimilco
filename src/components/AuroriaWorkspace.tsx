@@ -21,7 +21,8 @@ import {
   Settings,
   Leaf,
   Droplet,
-  Utensils
+  Utensils,
+  Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,34 +106,108 @@ const ta = {
   }
 };
 
-const PLANT_METABOLITES: { [key: string]: string[] } = {
-  "mentha piperita": ["Mentol (Menthol)", "Mentofurano", "Mentona (Menthone)"],
-  "menta": ["Mentol (Menthol)", "Mentofurano", "Mentona (Menthone)"],
-  "menta piperita": ["Mentol (Menthol)", "Mentofurano", "Mentona (Menthone)"],
-  "peppermint": ["Mentol (Menthol)", "Mentofurano", "Mentona (Menthone)"],
-  "rosmarinus officinalis": ["Ácido Rosmarínico (Rosmarinic Acid)", "Alcanfor (Camphor)", "1,8-Cineol"],
-  "salvia rosmarinus": ["Ácido Rosmarínico (Rosmarinic Acid)", "Alcanfor (Camphor)", "1,8-Cineol"],
-  "romero": ["Ácido Rosmarínico (Rosmarinic Acid)", "Alcanfor (Camphor)", "1,8-Cineol"],
-  "rosemary": ["Ácido Rosmarínico (Rosmarinic Acid)", "Alcanfor (Camphor)", "1,8-Cineol"],
-  "matricaria chamomilla": ["Apigenina (Apigenin)", "Chamazuleno (Chamazulene)", "Bisabolol"],
-  "manzanilla": ["Apigenina (Apigenin)", "Chamazuleno (Chamazulene)", "Bisabolol"],
-  "chamomile": ["Apigenina (Apigenin)", "Chamazuleno (Chamazulene)", "Bisabolol"],
-  "aloe vera": ["Aloína (Aloin)", "Acemanano (Acemannan)"],
-  "sábila": ["Aloína (Aloin)", "Acemanano (Acemannan)"],
-  "sabila": ["Aloína (Aloin)", "Acemanano (Acemannan)"],
-  "aloe": ["Aloína (Aloin)", "Acemanano (Acemannan)"],
-  "calendula officinalis": ["Ésteres de faradiol (Faradiol esters)", "Calendulin (Calendulin)"],
-  "caléndula": ["Ésteres de faradiol (Faradiol esters)", "Calendulin (Calendulin)"],
-  "calendula": ["Ésteres de faradiol (Faradiol esters)", "Calendulin (Calendulin)"],
-  "lavandula angustifolia": ["Acetato de linalilo (Linalyl acetate)", "Linalool"],
-  "lavanda": ["Acetato de linalilo (Linalyl acetate)", "Linalool"],
-  "lavender": ["Acetato de linalilo (Linalyl acetate)", "Linalool"]
+const PLANT_METABOLITES_TRANS: { [key: string]: { es: string; en: string }[] } = {
+  "mentha piperita": [
+    { es: "Mentol", en: "Menthol" },
+    { es: "Mentofurano", en: "Menthofuran" },
+    { es: "Mentona", en: "Menthone" }
+  ],
+  "menta": [
+    { es: "Mentol", en: "Menthol" },
+    { es: "Mentofurano", en: "Menthofuran" },
+    { es: "Mentona", en: "Menthone" }
+  ],
+  "menta piperita": [
+    { es: "Mentol", en: "Menthol" },
+    { es: "Mentofurano", en: "Menthofuran" },
+    { es: "Mentona", en: "Menthone" }
+  ],
+  "peppermint": [
+    { es: "Mentol", en: "Menthol" },
+    { es: "Mentofurano", en: "Menthofuran" },
+    { es: "Mentona", en: "Menthone" }
+  ],
+  "rosmarinus officinalis": [
+    { es: "Ácido Rosmarínico", en: "Rosmarinic Acid" },
+    { es: "Alcanfor", en: "Camphor" },
+    { es: "1,8-Cineol", en: "1,8-Cineole" }
+  ],
+  "salvia rosmarinus": [
+    { es: "Ácido Rosmarínico", en: "Rosmarinic Acid" },
+    { es: "Alcanfor", en: "Camphor" },
+    { es: "1,8-Cineol", en: "1,8-Cineole" }
+  ],
+  "romero": [
+    { es: "Ácido Rosmarínico", en: "Rosmarinic Acid" },
+    { es: "Alcanfor", en: "Camphor" },
+    { es: "1,8-Cineol", en: "1,8-Cineole" }
+  ],
+  "rosemary": [
+    { es: "Ácido Rosmarínico", en: "Rosmarinic Acid" },
+    { es: "Alcanfor", en: "Camphor" },
+    { es: "1,8-Cineol", en: "1,8-Cineole" }
+  ],
+  "matricaria chamomilla": [
+    { es: "Apigenina", en: "Apigenin" },
+    { es: "Chamazuleno", en: "Chamazulene" },
+    { es: "Bisabolol", en: "Bisabolol" }
+  ],
+  "manzanilla": [
+    { es: "Apigenina", en: "Apigenin" },
+    { es: "Chamazuleno", en: "Chamazulene" },
+    { es: "Bisabolol", en: "Bisabolol" }
+  ],
+  "chamomile": [
+    { es: "Apigenina", en: "Apigenin" },
+    { es: "Chamazuleno", en: "Chamazulene" },
+    { es: "Bisabolol", en: "Bisabolol" }
+  ],
+  "aloe vera": [
+    { es: "Aloína", en: "Aloin" },
+    { es: "Acemanano", en: "Acemannan" }
+  ],
+  "sábila": [
+    { es: "Aloína", en: "Aloin" },
+    { es: "Acemanano", en: "Acemannan" }
+  ],
+  "sabila": [
+    { es: "Aloína", en: "Aloin" },
+    { es: "Acemanano", en: "Acemannan" }
+  ],
+  "aloe": [
+    { es: "Aloína", en: "Aloin" },
+    { es: "Acemanano", en: "Acemannan" }
+  ],
+  "calendula officinalis": [
+    { es: "Ésteres de faradiol", en: "Faradiol esters" },
+    { es: "Calendulina", en: "Calendulin" }
+  ],
+  "caléndula": [
+    { es: "Ésteres de faradiol", en: "Faradiol esters" },
+    { es: "Calendulina", en: "Calendulin" }
+  ],
+  "calendula": [
+    { es: "Ésteres de faradiol", en: "Faradiol esters" },
+    { es: "Calendulina", en: "Calendulin" }
+  ],
+  "lavandula angustifolia": [
+    { es: "Acetato de linalilo", en: "Linalyl acetate" },
+    { es: "Linalool", en: "Linalool" }
+  ],
+  "lavanda": [
+    { es: "Acetato de linalilo", en: "Linalyl acetate" },
+    { es: "Linalool", en: "Linalool" }
+  ],
+  "lavender": [
+    { es: "Acetato de linalilo", en: "Linalyl acetate" },
+    { es: "Linalool", en: "Linalool" }
+  ]
 };
 
 export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
   // Inputs
   const [startingPoint, setStartingPoint] = useState<"choice" | "whole_plant" | "secondary_metabolite">("choice");
-  const [selectedMetabolite, setSelectedMetabolite] = useState<string>("Mentol (Menthol)");
+  const [selectedMetabolite, setSelectedMetabolite] = useState<string>(lang === "es" ? "Mentol" : "Menthol");
   const [customMetabolites, setCustomMetabolites] = useState<string[]>([]);
   const [botanicalName, setBotanicalName] = useState("Mentha piperita");
   const [volatilePct, setVolatilePct] = useState<number | string>("65");
@@ -213,6 +288,36 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
       setPubChemLoading(false);
     }
   };
+
+  // Synchronize active metabolite name on language toggle
+  useEffect(() => {
+    setSelectedMetabolite(prev => {
+      if (lang === "en") {
+        if (prev === "Mentol" || prev === "Mentol (Menthol)") return "Menthol";
+        if (prev === "Alcanfor" || prev === "Alcanfor (Camphor)") return "Camphor";
+        if (prev === "Ácido Salicílico" || prev === "Ácido salicílico") return "Salicylic Acid";
+        if (prev === "Quercetina") return "Quercetin";
+        if (prev === "Ácido Rosmarínico" || prev === "Ácido Rosmarínico (Rosmarinic Acid)") return "Rosmarinic Acid";
+        if (prev === "Apigenina" || prev === "Apigenina (Apigenin)") return "Apigenin";
+        if (prev === "Chamazuleno" || prev === "Chamazuleno (Chamazulene)") return "Chamazulene";
+        if (prev === "Aloína" || prev === "Aloína (Aloin)") return "Aloin";
+        if (prev === "Composición típica" || prev === "Compuesto Activo Tópico (Active)") return "Active Topical Compound";
+        if (prev === "Limoneno") return "Limonene";
+      } else {
+        if (prev === "Menthol" || prev === "Mentol (Menthol)") return "Mentol";
+        if (prev === "Camphor" || prev === "Alcanfor (Camphor)") return "Alcanfor";
+        if (prev === "Salicylic Acid" || prev === "Salicylic acid") return "Ácido Salicílico";
+        if (prev === "Quercetin") return "Quercetina";
+        if (prev === "Rosmarinic Acid" || prev === "Ácido Rosmarínico (Rosmarinic Acid)") return "Ácido Rosmarínico";
+        if (prev === "Apigenin" || prev === "Apigenina (Apigenin)") return "Apigenina";
+        if (prev === "Chamazulene" || prev === "Chamazuleno (Chamazulene)") return "Chamazuleno";
+        if (prev === "Aloin" || prev === "Aloína (Aloin)") return "Aloína";
+        if (prev === "Active Topical Compound" || prev === "Compuesto Activo Tópico (Active)") return "Compuesto Activo Tópico";
+        if (prev === "Limonene") return "Limoneno";
+      }
+      return prev;
+    });
+  }, [lang]);
 
   // Auto-activate Alternative Protocol if noael is "ND"
   useEffect(() => {
@@ -359,6 +464,7 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
 
   const rawVolatilePct = parseVal(volatilePct) || 50;
   const nonVolatilePct = Math.max(0, 100 - rawVolatilePct);
+  const hasNoData = !(botanicalName || "").trim() || !String(appliedAmount || "").trim() || !String(concentration || "").trim();
 
   const ndFields = [
     { name: lang === "es" ? "Vía Fitoquímica" : "Phytochemical Pathway", value: volatilePct },
@@ -760,11 +866,11 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
   const loadDefaults = (specimen: string) => {
     if (specimen === "Mentha") {
       setBotanicalName("Mentha piperita");
-      setSelectedMetabolite("Mentol (Menthol)");
+      setSelectedMetabolite(lang === "es" ? "Mentol" : "Menthol");
       setVolatilePct(65);
       setMentholPct(42.5);
       setRosmarinicPct(12.8);
-      setImpurityName("Mentofurano");
+      setImpurityName(lang === "es" ? "Mentofurano" : "Menthofuran");
       setImpurityPct(1.8);
       setAppliedAmount(1.2);
       setConcentration(3.5);
@@ -773,11 +879,11 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
       setNoael(150.0);
     } else if (specimen === "Chamomile") {
       setBotanicalName("Matricaria chamomilla");
-      setSelectedMetabolite("Apigenina (Apigenin)");
+      setSelectedMetabolite(lang === "es" ? "Apigenina" : "Apigenin");
       setVolatilePct(30);
       setMentholPct(0);
       setRosmarinicPct(28.4);
-      setImpurityName("Apigenina (Artefacto de extracción canela)");
+      setImpurityName(lang === "es" ? "Apigenina (Artefacto de extracción canela)" : "Apigenin (Cinnamon extraction artifact)");
       setImpurityPct(4.2);
       setAppliedAmount(2.0);
       setConcentration(5.0);
@@ -786,11 +892,11 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
       setNoael(220.0);
     } else if (specimen === "Rosemary") {
       setBotanicalName("Rosmarinus officinalis");
-      setSelectedMetabolite("Ácido Rosmarínico (Rosmarinic Acid)");
+      setSelectedMetabolite(lang === "es" ? "Ácido Rosmarínico" : "Rosmarinic Acid");
       setVolatilePct(55);
       setMentholPct(0);
       setRosmarinicPct(35.2);
-      setImpurityName("Alcanfor / Camphor");
+      setImpurityName(lang === "es" ? "Alcanfor" : "Camphor");
       setImpurityPct(2.5);
       setAppliedAmount(0.8);
       setConcentration(2.0);
@@ -1065,14 +1171,14 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
                               : "Select the primary metabolite to audit its safety limits:"}
                           </p>
                           <div className="flex flex-wrap gap-2 pt-2">
-                            {(customMetabolites && customMetabolites.length > 0
+                            {((customMetabolites && customMetabolites.length > 0)
                               ? customMetabolites
-                              : (PLANT_METABOLITES[botanicalName.toLowerCase().trim()] || [
-                                  "Compuesto Activo Tópico (Active)",
-                                  "Linalool",
-                                  "Limoneno",
-                                  "Quercetina"
-                                ])
+                              : (PLANT_METABOLITES_TRANS[botanicalName.toLowerCase().trim()] || [
+                                  { es: "Compuesto Activo Tópico", en: "Active Topical Compound" },
+                                  { es: "Linalool", en: "Linalool" },
+                                  { es: "Limoneno", en: "Limonene" },
+                                  { es: "Quercetina", en: "Quercetin" }
+                                ]).map(item => lang === "es" ? item.es : item.en)
                             ).map((met, i) => (
                               <button
                                 key={i}
@@ -1375,17 +1481,20 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
                       <div className="space-y-1.5">
                         <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest">{lang === "es" ? "Metabolitos de Referencia Rápida" : "Quick Reference Metabolites"}</span>
                         <div className="flex flex-wrap gap-1.5">
-                          {["Mentol / Menthol", "Alcanfor / Camphor", "Linalool", "Ácido Salicílico", "Quercetina"].map((preset, idx) => (
+                          {(lang === "es" 
+                            ? ["Mentol", "Alcanfor", "Linalool", "Ácido Salicílico", "Quercetina"] 
+                            : ["Menthol", "Camphor", "Linalool", "Salicylic Acid", "Quercetin"]
+                          ).map((preset, idx) => (
                             <button
                               key={idx}
                               type="button"
                               onClick={() => {
                                 setSelectedMetabolite(preset);
-                                if (preset.includes("Mentol")) { setNoael("150"); setDermalAbsorption("10"); }
-                                if (preset.includes("Alcanfor")) { setNoael("120"); setDermalAbsorption("10"); }
+                                if (preset.includes("Mentol") || preset.includes("Menthol")) { setNoael("150"); setDermalAbsorption("10"); }
+                                if (preset.includes("Alcanfor") || preset.includes("Camphor")) { setNoael("120"); setDermalAbsorption("10"); }
                                 if (preset.includes("Linalool")) { setNoael("200"); setDermalAbsorption("12"); }
-                                if (preset.includes("Salicílico")) { setNoael("100"); setDermalAbsorption("15"); }
-                                if (preset.includes("Quercetina")) { setNoael("300"); setDermalAbsorption("5"); }
+                                if (preset.includes("Salicílico") || preset.includes("Salicylic")) { setNoael("100"); setDermalAbsorption("15"); }
+                                if (preset.includes("Quercetina") || preset.includes("Quercetin")) { setNoael("300"); setDermalAbsorption("5"); }
                               }}
                               className="px-2 py-0.5 text-[10px] font-mono rounded-lg border border-teal-500/20 bg-teal-500/10 text-teal-300 hover:bg-teal-500/20 transition-all cursor-pointer"
                             >
@@ -1538,7 +1647,7 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
               </div>
             </CardHeader>
             <CardContent className="p-8 space-y-6">
-              {validationError && (
+              {validationError && !hasNoData && (
                 <div id="validation-error-alert" className="p-4 rounded-xl border border-rose-500/35 bg-rose-500/10 text-rose-300 text-xs flex items-start gap-2.5">
                   <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
                   <div>
@@ -2022,9 +2131,11 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
         <div className="space-y-8">
           {/* Audit Result Display (Highly visual & prestigious) */}
           <Card className={`rounded-[3rem] border border-primary/25 relative overflow-hidden transition-all duration-500 shadow-2xl ${
-            isApproved 
-              ? "bg-gradient-to-br from-card/65 via-slate-900/40 to-emerald-950/20 shadow-emerald-950/10" 
-              : "bg-gradient-to-br from-card/65 via-slate-900/40 to-rose-950/20 shadow-rose-950/10"
+            hasNoData
+              ? "bg-gradient-to-br from-card/65 via-slate-900/40 to-amber-950/10 shadow-amber-950/5 border-amber-500/20"
+              : isApproved 
+                ? "bg-gradient-to-br from-card/65 via-slate-900/40 to-emerald-950/20 shadow-emerald-950/10" 
+                : "bg-gradient-to-br from-card/65 via-slate-900/40 to-rose-950/20 shadow-rose-950/10"
           }`}>
             <CardContent className="p-10 md:p-14 space-y-8 flex flex-col justify-between">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -2033,20 +2144,29 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
                     {lang === "es" ? "Estatus de Auditoría in silico" : "In Silico Audit Status"}
                   </span>
                   <h3 className="text-3xl font-serif font-black tracking-tight flex items-center gap-3 text-white">
-                    {botanicalName === "Compuesto Puro" || botanicalName === "Compuesto Puro / Pure Compound" || botanicalName === "Pure Compound" ? selectedMetabolite : botanicalName} {lang === "es" ? "Certificado" : "Certified"}
+                    {botanicalName === "Compuesto Puro" || botanicalName === "Compuesto Puro / Pure Compound" || botanicalName === "Pure Compound" ? selectedMetabolite : (botanicalName || (lang === "es" ? "Estudio Vacío" : "Empty Study"))} {lang === "es" ? "Certificado" : "Certified"}
                   </h3>
                 </div>
                 
                 {/* Result stamp badge */}
                 <div className={`flex items-center gap-2 rounded-2xl border px-5 py-3 font-mono font-black text-xs uppercase tracking-widest shadow-xl animate-fade-in ${
-                  isApproved 
-                    ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-400 shadow-emerald-500/5" 
-                    : "border-rose-500/35 bg-rose-500/10 text-rose-400 shadow-rose-500/5"
+                  hasNoData
+                    ? "border-amber-500/35 bg-amber-500/10 text-amber-400 shadow-amber-500/5"
+                    : isApproved 
+                      ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-400 shadow-emerald-500/5" 
+                      : "border-rose-500/35 bg-rose-500/10 text-rose-400 shadow-rose-500/5"
                 }`}>
-                  {isApproved ? <ShieldCheck className="w-5 h-5 animate-pulse" /> : <AlertCircle className="w-5 h-5 animate-bounce" />}
-                  {isApproved 
-                    ? (lang === "es" ? "APROBACIÓN REGULATORIA" : "REGULATORY APPROVAL") 
-                    : (lang === "es" ? "RECHAZO REGULATORIO / ALERTA DE TOXICIDAD" : "REGULATORY REJECTION / TOXICITY ALERT")}
+                  {hasNoData 
+                    ? <Clock className="w-5 h-5 animate-pulse" /> 
+                    : isApproved 
+                      ? <ShieldCheck className="w-5 h-5 animate-pulse" /> 
+                      : <AlertCircle className="w-5 h-5 animate-bounce" />
+                  }
+                  {hasNoData
+                    ? (lang === "es" ? "ESPERANDO DATOS DE ESTUDIO" : "AWAITING STUDY DATA")
+                    : isApproved 
+                      ? (lang === "es" ? "APROBACIÓN REGULATORIA" : "REGULATORY APPROVAL") 
+                      : (lang === "es" ? "RECHAZO REGULATORIO / ALERTA DE TOXICIDAD" : "REGULATORY REJECTION / TOXICITY ALERT")}
                 </div>
               </div>
 
@@ -2058,8 +2178,8 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
                       ? (lang === "es" ? "EDI Estimado" : "Estimated EDI")
                       : (lang === "es" ? "SED Estimado" : "Estimated SED")}
                   </span>
-                  <p className="text-2xl sm:text-3xl lg:text-4xl font-mono font-extrabold tracking-tighter text-white truncate" title={formatToxValue(sed, 8)}>
-                    {formatToxValue(sed, evaluationRoute === "oral" ? 6 : 3)}
+                  <p className="text-2xl sm:text-3xl lg:text-4xl font-mono font-extrabold tracking-tighter text-white truncate" title={hasNoData ? "---" : formatToxValue(sed, 8)}>
+                    {hasNoData ? "---" : formatToxValue(sed, evaluationRoute === "oral" ? 6 : 3)}
                   </p>
                   <span className="text-[9px] font-mono text-zinc-500 block">
                     {lang === "es" ? "mg/kg PC/día" : "mg/kg bw/day"}
@@ -2067,7 +2187,7 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
                 </div>
 
                 <div className="p-5 sm:p-6 rounded-3xl bg-black/35 border border-white/5 space-y-1 relative overflow-hidden text-left break-words">
-                  <div className={`absolute top-0 bottom-0 right-0 w-2 ${isApproved ? "bg-emerald-500" : "bg-rose-500"}`} />
+                  <div className={`absolute top-0 bottom-0 right-0 w-2 ${hasNoData ? "bg-amber-500" : isApproved ? "bg-emerald-500" : "bg-rose-500"}`} />
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[10px] font-mono font-bold text-muted-foreground uppercase tracking-widest">
                     <span>
                       {evaluationRoute === "oral" 
@@ -2082,216 +2202,232 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
                         : (lang === "es" ? "Mínimo: 100" : "Minimum: 100")}
                     </span>
                   </div>
-                  <p className={`text-2xl sm:text-3xl lg:text-4xl font-mono font-extrabold tracking-tighter ${isApproved ? "text-emerald-400" : "text-rose-400"} truncate`}>
-                    {formatToxValue(mos, evaluationRoute === "oral" ? 6 : 2)}
+                  <p className={`text-2xl sm:text-3xl lg:text-4xl font-mono font-extrabold tracking-tighter ${hasNoData ? "text-amber-400" : isApproved ? "text-emerald-400" : "text-rose-400"} truncate`}>
+                    {hasNoData ? "---" : formatToxValue(mos, evaluationRoute === "oral" ? 6 : 2)}
                   </p>
-                  <span className="text-[9px] font-mono text-zinc-500 block truncate">
-                    {evaluationRoute === "oral"
-                      ? (isAlternativeProtocolActive 
+                  <span className="text-[9px] font-mono text-zinc-500 block truncate font-sans">
+                    {hasNoData
+                      ? (lang === "es" ? "Análisis no iniciado" : "Analysis not started")
+                      : evaluationRoute === "oral"
+                        ? (isAlternativeProtocolActive 
+                            ? (alternativeStrategy === "ttc" 
+                                ? `TTC Class ${cramerClass}: Safe Threshold` 
+                                : alternativeStrategy === "read_across" 
+                                ? `Read-Across (${readAcrossAnalog || "Analog"} PoD)` 
+                                : `BMDL10: ${bmdlValue || 0}`)
+                            : `NOAEL / 100`)
+                        : isAlternativeProtocolActive 
                           ? (alternativeStrategy === "ttc" 
-                              ? `TTC Class ${cramerClass}: Safe Threshold` 
+                              ? `TTC Class ${cramerClass}: Threshold/SED` 
                               : alternativeStrategy === "read_across" 
-                              ? `Read-Across (${readAcrossAnalog || "Analog"} PoD)` 
-                              : `BMDL10: ${bmdlValue || 0}`)
-                          : `NOAEL / 100`)
-                      : isAlternativeProtocolActive 
-                        ? (alternativeStrategy === "ttc" 
-                            ? `TTC Class ${cramerClass}: Threshold/SED` 
-                            : alternativeStrategy === "read_across" 
-                            ? `Read-Across (${readAcrossAnalog || "Analog"} PoD)/SED` 
-                            : `BMDL10: ${bmdlValue || 0}/SED`)
-                        : `NOAEL / SED`
+                              ? `Read-Across (${readAcrossAnalog || "Analog"} PoD)/SED` 
+                              : `BMDL10: ${bmdlValue || 0}/SED`)
+                          : `NOAEL / SED`
                     }
                   </span>
                 </div>
               </div>
 
               {/* Specific Regulatory Statement */}
-              <div className={`p-4 rounded-2xl border flex items-start gap-3.5 leading-relaxed text-xs text-left ${
-                isApproved 
-                  ? "border-emerald-500/10 bg-emerald-500/5 text-emerald-300"
-                  : "border-rose-500/10 bg-rose-500/5 text-rose-300"
-              }`}>
-                {isApproved ? (
-                  <>
-                    <CheckCircle2 className="w-5 h-5 mt-0.5 shrink-0 text-emerald-400" />
-                    <p>
-                      <strong>
-                        {evaluationRoute === "oral"
-                          ? (lang === "es" ? "Dictamen Jurídico Conforme (Ingesta Oral Diaria Segura):" : "Conforming Legal Verdict (Safe Oral Daily Intake):")
-                          : (lang === "es" ? "Dictamen Jurídico Conforme (Evaluación Alternativa NGRA Dérmica):" : "Conforming Legal Verdict (Alternative Dermal NGRA Assessment):")
-                        }
-                      </strong>{" "}
-                      {evaluationRoute === "oral" ? (
-                        lang === "es" ? (
-                          <>
-                            {isAlternativeProtocolActive ? (
-                              <>
-                                El análisis de riesgo oral alternativo para <strong>{selectedMetabolite}</strong> mediante la estrategia de{" "}
-                                <strong>
-                                  {alternativeStrategy === "ttc" 
-                                    ? `TTC (Clase de Cramer ${cramerClass})` 
-                                    : alternativeStrategy === "read_across" 
-                                    ? `Read-Across (Análogo: ${readAcrossAnalog || "N/D"})` 
-                                    : "BMDL10"}
-                                </strong>{" "}
-                                concluye que la ingesta diaria estimada es segura y se encuentra por debajo de los límites tolerables establecidos (EDI &le; ADI/TDI equivalente). El espécimen vegetal <strong>{botanicalName}</strong> al <strong>{concentration}%</strong> se aprueba provisionalmente para su desarrollo clínico e industrial bajo la norma mexicana <strong>NOM-073-SSA1-2015</strong>. Se aconseja validación analítica complementaria de laboratorio.
-                              </>
-                            ) : (
-                              <>La Ingesta Diaria Estimada calculated (<strong>{formatToxValue(sed, 6)}</strong> mg/kg PC/día) es igual o menor al Límite Seguro Tolerable/Admisible ADI/TDI (<strong>{formatToxValue(mos, 6)}</strong> mg/kg PC/día). La formulación oral de <strong>{botanicalName}</strong> al <strong>{concentration}%</strong> se aprueba para su uso seguro según los criterios de estabilidad de la norma mexicana <strong>NOM-073-SSA1-2015</strong>.</>
-                            )}
-                          </>
+              {hasNoData ? (
+                <div className="p-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 text-amber-300 flex items-start gap-3.5 leading-relaxed text-xs text-left">
+                  <Clock className="w-5 h-5 mt-0.5 shrink-0 text-amber-400 animate-pulse" />
+                  <div>
+                    <strong className="block mb-1 text-amber-200">
+                      {lang === "es" ? "Pendiente de Parámetros Científicos:" : "Awaiting Scientific Parameters:"}
+                    </strong>{" "}
+                    {lang === "es" 
+                      ? "Por favor ingrese un nombre de especie botánica y complete los campos requeridos (con datos de PubChem o manuales) para activar la certificación y evaluar el margen de riesgo toxicológico."
+                      : "Please type a botanical species name and fill the required parameters (using PubChem data or manual entry) to activate the certification and gauge the toxicology compliance window."}
+                  </div>
+                </div>
+              ) : (
+                <div className={`p-4 rounded-2xl border flex items-start gap-3.5 leading-relaxed text-xs text-left ${
+                  isApproved 
+                    ? "border-emerald-500/10 bg-emerald-500/5 text-emerald-300"
+                    : "border-rose-500/10 bg-rose-500/5 text-rose-300"
+                }`}>
+                  {isApproved ? (
+                    <>
+                      <CheckCircle2 className="w-5 h-5 mt-0.5 shrink-0 text-emerald-400" />
+                      <p>
+                        <strong>
+                          {evaluationRoute === "oral"
+                            ? (lang === "es" ? "Dictamen Jurídico Conforme (Ingesta Oral Diaria Segura):" : "Conforming Legal Verdict (Safe Oral Daily Intake):")
+                            : (lang === "es" ? "Dictamen Jurídico Conforme (Evaluación Alternativa NGRA Dérmica):" : "Conforming Legal Verdict (Alternative Dermal NGRA Assessment):")
+                          }
+                        </strong>{" "}
+                        {evaluationRoute === "oral" ? (
+                          lang === "es" ? (
+                            <>
+                              {isAlternativeProtocolActive ? (
+                                <>
+                                  El análisis de riesgo oral alternativo para <strong>{selectedMetabolite}</strong> mediante la estrategia de{" "}
+                                  <strong>
+                                    {alternativeStrategy === "ttc" 
+                                      ? `TTC (Clase de Cramer ${cramerClass})` 
+                                      : alternativeStrategy === "read_across" 
+                                      ? `Read-Across (Análogo: ${readAcrossAnalog || "N/D"})` 
+                                      : "BMDL10"}
+                                  </strong>{" "}
+                                  concluye que la ingesta diaria estimada es segura y se encuentra por debajo de los límites tolerables establecidos (EDI &le; ADI/TDI equivalente), de acuerdo con los criterios internacionales de la US EPA (IRIS) y del Comité Científico de Seguridad de los Consumidores de la Unión Europea (SCCS). El espécimen vegetal <strong>{botanicalName}</strong> al <strong>{concentration}%</strong> se aprueba provisionalmente para su desarrollo clínico e industrial bajo la norma mexicana <strong>NOM-073-SSA1-2015</strong> y las directrices internacionales. Se aconseja validación analítica complementaria de laboratorio.
+                                </>
+                              ) : (
+                                <>La Ingesta Diaria Estimada calculada (<strong>{formatToxValue(sed, 6)}</strong> mg/kg PC/día) es igual o menor al Límite Seguro Tolerable/Admisible ADI/TDI (<strong>{formatToxValue(mos, 6)}</strong> mg/kg PC/día). La formulación oral de <strong>{botanicalName}</strong> al <strong>{concentration}%</strong> se aprueba para su uso seguro según los criterios de estabilidad de la norma mexicana <strong>NOM-073-SSA1-2015</strong>, alineado con las dosis de referencia de la de la US EPA (IRIS) y consensos de la OMS.</>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {isAlternativeProtocolActive ? (
+                                <>
+                                  The alternative oral risk assessment for <strong>{selectedMetabolite}</strong> via{" "}
+                                  <strong>
+                                    {alternativeStrategy === "ttc" 
+                                      ? `TTC (Cramer Class ${cramerClass})` 
+                                      : alternativeStrategy === "read_across" 
+                                      ? `Read-Across (Analog: ${readAcrossAnalog || "N/D"})` 
+                                      : "BMDL10"}
+                                  </strong>{" "}
+                                  concludes that the estimated oral intake is safe and below acceptable daily boundaries (EDI &le; ADI/TDI equivalent), in accordance with international standards from the US EPA (IRIS) and the European Union Scientific Committee on Consumer Safety (SCCS). The botanical specimen <strong>{botanicalName}</strong> at <strong>{concentration}%</strong> is approved for oral use in compliance with Mexican specification guidelines and global safety norms. Laboratory validation is advised.
+                                </>
+                              ) : (
+                                <>The Estimated Daily Intake (EDI) (<strong>{formatToxValue(sed, 6)}</strong> mg/kg bw/day) complies with safe limits and is below the ADI/TDI (<strong>{formatToxValue(mos, 6)}</strong> mg/kg bw/day). The botanical formulation of <strong>{botanicalName}</strong> at <strong>{concentration}%</strong> is provisionally approved for oral use under official stability guidelines, aligned with US EPA (IRIS) reference doses and WHO consensus definitions.</>
+                              )}
+                            </>
+                          )
                         ) : (
-                          <>
-                            {isAlternativeProtocolActive ? (
-                              <>
-                                The alternative oral risk assessment for <strong>{selectedMetabolite}</strong> via{" "}
-                                <strong>
-                                  {alternativeStrategy === "ttc" 
-                                    ? `TTC (Cramer Class ${cramerClass})` 
-                                    : alternativeStrategy === "read_across" 
-                                    ? `Read-Across (Analog: ${readAcrossAnalog || "N/D"})` 
-                                    : "BMDL10"}
-                                </strong>{" "}
-                                concludes that the estimated oral intake is safe and below acceptable daily boundaries (EDI &le; ADI/TDI equivalent). The botanical specimen <strong>{botanicalName}</strong> at <strong>{concentration}%</strong> is approved for oral use in compliance with Mexican specification guidelines. Laboratory validation is advised.
-                              </>
-                            ) : (
-                              <>The Estimated Daily Intake (EDI) (<strong>{formatToxValue(sed, 6)}</strong> mg/kg bw/day) compiles with safe limits and is below the ADI/TDI (<strong>{formatToxValue(mos, 6)}</strong> mg/kg bw/day). The botanical formulation of <strong>{botanicalName}</strong> at <strong>{concentration}%</strong> is provisionally approved for oral use under official stability guidelines.</>
-                            )}
-                          </>
-                        )
-                      ) : (
-                        lang === "es" ? (
-                          <>
-                            {isAlternativeProtocolActive ? (
-                              <>
-                                El análisis de riesgo alternativo para <strong>{selectedMetabolite}</strong> mediante la estrategia de{" "}
-                                <strong>
-                                  {alternativeStrategy === "ttc" 
-                                    ? `TTC (Clase de Cramer ${cramerClass})` 
-                                    : alternativeStrategy === "read_across" 
-                                    ? `Read-Across (Análogo: ${readAcrossAnalog || "N/D"})` 
-                                    : "BMDL10"}
-                                </strong>{" "}
-                                concluye que la exposición estimada es segura bajo el marco integrado (MoS/Índice equivalente &ge; 100). El espécimen vegetal <strong>{botanicalName}</strong> al <strong>{concentration}%</strong> se aprueba provisionalmente para su desarrollo clínico e industrial bajo la norma mexicana <strong>NOM-073-SSA1-2015</strong>. Se aconseja validación analítica complementaria de laboratorio.
-                              </>
-                            ) : (
-                              <>El Margen de Seguridad calculado (<strong>{formatToxValue(mos, 2)}</strong>) es superior a 100. La formulación de <strong>{botanicalName}</strong> al <strong>{concentration}%</strong> se aprueba provisionalmente para su evaluación clínica e industrial bajo los criterios de estabilidad de la norma mexicana <strong>NOM-073-SSA1-2015</strong>.</>
-                            )}
-                          </>
+                          lang === "es" ? (
+                            <>
+                              {isAlternativeProtocolActive ? (
+                                <>
+                                  El análisis de riesgo alternativo para <strong>{selectedMetabolite}</strong> mediante la estrategia de{" "}
+                                  <strong>
+                                    {alternativeStrategy === "ttc" 
+                                      ? `TTC (Clase de Cramer ${cramerClass})` 
+                                      : alternativeStrategy === "read_across" 
+                                      ? `Read-Across (Análogo: ${readAcrossAnalog || "N/D"})` 
+                                      : "BMDL10"}
+                                  </strong>{" "}
+                                  concluye que la exposición estimada es segura bajo el marco integrado de evaluación de riesgo de la Unión Europea (MoS/Índice equivalente &ge; 100), sustentado por el reglamento CE 1223/2009 de la SCCS y los factores de incertidumbre de la US EPA. El espécimen vegetal <strong>{botanicalName}</strong> al <strong>{concentration}%</strong> se aprueba provisionalmente para su desarrollo clínico e industrial bajo la norma mexicana <strong>NOM-073-SSA1-2015</strong>. Se aconseja validación analítica complementaria de laboratorio.
+                                </>
+                              ) : (
+                                <>El Margen de Seguridad calculado (<strong>{formatToxValue(mos, 2)}</strong>) es superior a 100, cumpliendo holgadamente con los límites exigidos por la reglamentación de cosméticos de la UE (SCCS/EC 1223/2009) y los umbrales de referencia dérmicos de la US EPA. La formulación de <strong>{botanicalName}</strong> al <strong>{concentration}%</strong> se aprueba provisionalmente para su evaluación clínica e industrial bajo los criterios de estabilidad de la norma mexicana <strong>NOM-073-SSA1-2015</strong>.</>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {isAlternativeProtocolActive ? (
+                                <>
+                                  The alternative risk assessment for <strong>{selectedMetabolite}</strong> via{" "}
+                                  <strong>
+                                    {alternativeStrategy === "ttc" 
+                                      ? `TTC (Cramer Class ${cramerClass})` 
+                                      : alternativeStrategy === "read_across" 
+                                      ? `Read-Across (Analog: ${readAcrossAnalog || "N/D"})` 
+                                      : "BMDL10"}
+                                  </strong>{" "}
+                                  concludes that the exposure has been evaluated as safe under the European Union integrated risk assessment framework (MoS/equivalent Index &ge; 100), supported by the SCCS EC 1223/2009 regulation and US EPA uncertainty factors. The formulation is provisionally approved under <strong>NOM-073-SSA1-2015</strong> predictive principles. Laboratory validation is advised.
+                                </>
+                              ) : (
+                                <>The calculated Margin of Safety (<strong>{formatToxValue(mos, 2)}</strong>) complies with international standards, comfortably exceeding the safety threshold of 100 defined by the EU SCCS/EC 1223/2009 cosmetics regulation and US EPA dermal benchmarks. The formulation of <strong>{botanicalName}</strong> at <strong>{concentration}%</strong> is provisionally approved for industrial implementation under official stability guidelines.</>
+                              )}
+                            </>
+                          )
+                        )}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-5 h-5 mt-0.5 shrink-0 text-rose-400 animate-pulse" />
+                      <p>
+                        <strong>
+                          {evaluationRoute === "oral"
+                            ? (lang === "es" ? "Alerta de Riesgo Toxicológico (Ingesta Oral Excesiva):" : "Toxicological Risk Warning (Excessive Oral Intake):")
+                            : (lang === "es" ? "Alerta de Riesgo Toxicológico (Evaluación Alternativa NGRA Dérmica):" : "Toxicological Risk Warning (Alternative Dermal NGRA Assessment):")
+                          }
+                        </strong>{" "}
+                        {evaluationRoute === "oral" ? (
+                          lang === "es" ? (
+                            <>
+                              {isAlternativeProtocolActive ? (
+                                <>
+                                  El análisis de riesgo oral alternativo para <strong>{selectedMetabolite}</strong> mediante la estrategia de{" "}
+                                  <strong>
+                                    {alternativeStrategy === "ttc" 
+                                      ? `TTC (Clase de Cramer ${cramerClass})` 
+                                      : alternativeStrategy === "read_across" 
+                                      ? `Read-Across (Análogo: ${readAcrossAnalog || "N/D"})` 
+                                      : "BMDL10"}
+                                  </strong>{" "}
+                                  indica que la exposición calculada supera el límite diario tolerable equivalente (EDI &gt; ADI/TDI), violando los márgenes de seguridad de la US EPA (IRIS) y del SCCS de la Unión Europea. Se requiere obligatoriamente reformular para disminuir la dosis oral diaria o sustituir por ingredientes con mayor nivel de protección conforme a la norma federal <strong>NOM-073-SSA1-2015</strong> y las normas mundiales.
+                                </>
+                              ) : (
+                                <>La Ingesta Diaria Estimada calculada (<strong>{formatToxValue(sed, 6)}</strong> mg/kg PC/día) SUPERA el Límite Seguro Tolerable/Admisible ADI/TDI (<strong>{formatToxValue(mos, 6)}</strong> mg/kg PC/día), violando los márgenes de seguridad de la US EPA (IRIS) y del SCCS de la Unión Europea. Es de carácter OBLIGATORIO reformular: reduce la dosis diaria sugerida o disminuye el porcentaje de extracto herbolario en la preparación oral de acuerdo con las especificaciones de la norma mexicana <strong>NOM-073-SSA1-2015</strong>.</>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {isAlternativeProtocolActive ? (
+                                <>
+                                  The alternative oral risk assessment for <strong>{selectedMetabolite}</strong> via{" "}
+                                  <strong>
+                                    {alternativeStrategy === "ttc" 
+                                      ? `TTC (Cramer Class ${cramerClass})` 
+                                      : alternativeStrategy === "read_across" 
+                                      ? `Read-Across (Analog: ${readAcrossAnalog || "N/D"})` 
+                                      : "BMDL10"}
+                                  </strong>{" "}
+                                  indicates that the calculated oral exposure exceeds safe tolerable limits (EDI &gt; ADI/TDI), violating guidance references from the US EPA (IRIS) and EU SCCS reviews. It is mandatory to reformulate to reduce intake recommendations or active concentrate under <strong>NOM-073-SSA1-2015</strong> guidelines.
+                                </>
+                              ) : (
+                                <>The Estimated Daily Intake (EDI) (<strong>{formatToxValue(sed, 6)}</strong> mg/kg bw/day) EXCEEDS the safe tolerable daily limits (ADI/TDI: <strong>{formatToxValue(mos, 6)}</strong> mg/kg bw/day), violating reference standards from the US EPA (IRIS) and the EU SCCS. It is MANDATORY to reformulate: reduce the oral dosage or extract concentration to satisfy Mexican <strong>NOM-073-SSA1-2015</strong> guidelines and international safety principles.</>
+                              )}
+                            </>
+                          )
                         ) : (
-                          <>
-                            {isAlternativeProtocolActive ? (
-                              <>
-                                The alternative risk assessment for <strong>{selectedMetabolite}</strong> via{" "}
-                                <strong>
-                                  {alternativeStrategy === "ttc" 
-                                    ? `TTC (Cramer Class ${cramerClass})` 
-                                    : alternativeStrategy === "read_across" 
-                                    ? `Read-Across (Analog: ${readAcrossAnalog || "N/D"})` 
-                                    : "BMDL10"}
-                                </strong>{" "}
-                                concludes that the exposure has been evaluated as safe. The formulation is provisionally approved under <strong>NOM-073-SSA1-2015</strong> predictive principles. Laboratory validation is advised.
-                              </>
-                            ) : (
-                              <>The calculated Margin of Safety (<strong>{formatToxValue(mos, 2)}</strong>) complies with international standards. The formulation of <strong>{botanicalName}</strong> at <strong>{concentration}%</strong> is provisionally approved for industrial implementation under official stability guidelines.</>
-                            )}
-                          </>
-                        )
-                      )}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle className="w-5 h-5 mt-0.5 shrink-0 text-rose-400 animate-pulse" />
-                    <p>
-                      <strong>
-                        {evaluationRoute === "oral"
-                          ? (lang === "es" ? "Alerta de Riesgo Toxicológico (Ingesta Oral Excesiva):" : "Toxicological Risk Warning (Excessive Oral Intake):")
-                          : (lang === "es" ? "Alerta de Riesgo Toxicológico (Evaluación Alternativa NGRA Dérmica):" : "Toxicological Risk Warning (Alternative Dermal NGRA Assessment):")
-                        }
-                      </strong>{" "}
-                      {evaluationRoute === "oral" ? (
-                        lang === "es" ? (
-                          <>
-                            {isAlternativeProtocolActive ? (
-                              <>
-                                El análisis de riesgo oral alternativo para <strong>{selectedMetabolite}</strong> mediante la estrategia de{" "}
-                                <strong>
-                                  {alternativeStrategy === "ttc" 
-                                    ? `TTC (Clase de Cramer ${cramerClass})` 
-                                    : alternativeStrategy === "read_across" 
-                                    ? `Read-Across (Análogo: ${readAcrossAnalog || "N/D"})` 
-                                    : "BMDL10"}
-                                </strong>{" "}
-                                indica que la exposición calculada supera el límite diario tolerable equivalente (EDI &gt; ADI/TDI). Se requiere obligatoriamente reformular para disminuir la dosis oral diaria o sustituir por ingredientes con mayor nivel de protección.
-                              </>
-                            ) : (
-                              <>La Ingesta Diaria Estimada calculada (<strong>{formatToxValue(sed, 6)}</strong> mg/kg PC/día) SUPERA el Límite Seguro Tolerable/Admisible ADI/TDI (<strong>{formatToxValue(mos, 6)}</strong> mg/kg PC/día). Es de carácter OBLIGATORIO reformular: reduce la dosis diaria sugerida o disminuye el porcentaje de extracto herbolario en la preparación oral.</>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            {isAlternativeProtocolActive ? (
-                              <>
-                                The alternative oral risk assessment for <strong>{selectedMetabolite}</strong> via{" "}
-                                <strong>
-                                  {alternativeStrategy === "ttc" 
-                                    ? `TTC (Cramer Class ${cramerClass})` 
-                                    : alternativeStrategy === "read_across" 
-                                    ? `Read-Across (Analog: ${readAcrossAnalog || "N/D"})` 
-                                    : "BMDL10"}
-                                </strong>{" "}
-                                indicates that the calculated oral exposure exceeds safe tolerable limits (EDI &gt; ADI/TDI). It is mandatory to reformulate to reduce intake recommendations or active concentrate.
-                              </>
-                            ) : (
-                              <>The Estimated Daily Intake (EDI) (<strong>{formatToxValue(sed, 6)}</strong> mg/kg bw/day) EXCEEDS the safe tolerable daily limits (ADI/TDI: <strong>{formatToxValue(mos, 6)}</strong> mg/kg bw/day). It is MANDATORY to reformulate: reduce the oral dosage or extract concentration.</>
-                            )}
-                          </>
-                        )
-                      ) : (
-                        lang === "es" ? (
-                          <>
-                            {isAlternativeProtocolActive ? (
-                              <>
-                                El análisis de riesgo alternativo para <strong>{selectedMetabolite}</strong> mediante{" "}
-                                <strong>
-                                  {alternativeStrategy === "ttc" 
-                                    ? `TTC (Clase de Cramer ${cramerClass})` 
-                                    : alternativeStrategy === "read_across" 
-                                    ? `Read-Across (Análogo: ${readAcrossAnalog || "N/D"})` 
-                                    : "BMDL10"}
-                                </strong>{" "}
-                                indica que la exposición estimada supera los umbrales regulatorios de seguridad dérmica tolerables (MoS &lt; 100 o Índice de Riesgo &gt; 1.0). Se requiere obligatoriamente reformular para disminuir la dosis diaria o sustituir por ingredientes con mayor margen de protección.
-                              </>
-                            ) : (
-                              <>El Margen de Seguridad calculado (<strong>{formatToxValue(mos, 2)}</strong>) está por debajo del umbral de seguridad estricto regulatorio (SCCS MoS &lt; 100). Es de carácter OBLIGATORIO reformular: reduce la cantidad diaria recomendada, disminuye el extracto en fórmula o audita el nivel de impurezas herbolarias de la planta.</>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            {isAlternativeProtocolActive ? (
-                              <>
-                                The alternative risk assessment for <strong>{selectedMetabolite}</strong> via{" "}
-                                <strong>
-                                  {alternativeStrategy === "ttc" 
-                                    ? `TTC (Cramer Class ${cramerClass})` 
-                                    : alternativeStrategy === "read_across" 
-                                    ? `Read-Across (Analog: ${readAcrossAnalog || "N/D"})` 
-                                    : "BMDL10"}
-                                </strong>{" "}
-                                indicates exposure exceeds safe thresholds (MoS &lt; 100). Reformulation is mandatory.
-                              </>
-                            ) : (
-                              <>The calculated Margin of Safety (<strong>{formatToxValue(mos, 2)}</strong>) falls below the strict safety threshold (SCCS MoS &lt; 100). It is MANDATORY to reformulate: reduce the recommended daily dose, lower the formula concentration, or lower the botanical impurities level of the plant.</>
-                            )}
-                          </>
-                        )
-                      )}
-                    </p>
-                  </>
-                )}
-              </div>
+                          lang === "es" ? (
+                            <>
+                              {isAlternativeProtocolActive ? (
+                                <>
+                                  El análisis de riesgo alternativo para <strong>{selectedMetabolite}</strong> mediante{" "}
+                                  <strong>
+                                    {alternativeStrategy === "ttc" 
+                                      ? `TTC (Clase de Cramer ${cramerClass})` 
+                                      : alternativeStrategy === "read_across" 
+                                      ? `Read-Across (Análogo: ${readAcrossAnalog || "N/D"})` 
+                                      : "BMDL10"}
+                                  </strong>{" "}
+                                  indica que la exposición estimada supera los umbrales regulatorios de seguridad dérmica tolerables internacionales (SCCS MoS &lt; 100 o Índice de Riesgo de la US EPA &gt; 1.0). Se requiere obligatoriamente reformular para disminuir la dosis diaria o sustituir por ingredientes con mayor margen de protección conforme a la norma federal <strong>NOM-073-SSA1-2015</strong>.
+                                </>
+                              ) : (
+                                <>El Margen de Seguridad calculado (<strong>{formatToxValue(mos, 2)}</strong>) está por debajo del umbral de seguridad estricto regulatorio internacional (SCCS MoS &lt; 100 y de la US EPA). Es de carácter OBLIGATORIO reformular: reduce la cantidad diaria recomendada, disminuye el extracto en fórmula o audita el nivel de impurezas herbolarias de la planta de acuerdo con las especificaciones de la norma mexicana <strong>NOM-073-SSA1-2015</strong>.</>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {isAlternativeProtocolActive ? (
+                                <>
+                                  The alternative risk assessment for <strong>{selectedMetabolite}</strong> via{" "}
+                                  <strong>
+                                    {alternativeStrategy === "ttc" 
+                                      ? `TTC (Cramer Class ${cramerClass})` 
+                                      : alternativeStrategy === "read_across" 
+                                      ? `Read-Across (Analog: ${readAcrossAnalog || "N/D"})` 
+                                      : "BMDL10"}
+                                  </strong>{" "}
+                                  indicates exposure exceeds safe thresholds (SCCS MoS &lt; 100 or US EPA hazard risk quotient &gt; 1.0). Reformulation is mandatory under official <strong>NOM-073-SSA1-2015</strong> guidelines and international standards.
+                                </>
+                              ) : (
+                                <>The calculated Margin of Safety (<strong>{formatToxValue(mos, 2)}</strong>) falls below the strict safety threshold (SCCS MoS &lt; 100 &amp; US EPA reference guides). It is MANDATORY to reformulate: reduce the recommended daily dose, lower the formula concentration, or lower the botanical impurities level of the plant under official <strong>NOM-073-SSA1-2015</strong> guidelines.</>
+                              )}
+                            </>
+                          )
+                        )}
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -2398,7 +2534,16 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
                       </Button>
 
                       <PDFDownloadLink
-                        document={<ScientificReport title={lang === "es" ? `Reporte AurorIA: ${botanicalName}` : `AurorIA Report: ${botanicalName}`} result={reportResult} lang={lang} />}
+                        document={
+                          <ScientificReport 
+                            title={lang === "es" ? `Reporte AurorIA: ${botanicalName}` : `AurorIA Report: ${botanicalName}`} 
+                            result={reportResult} 
+                            lang={lang} 
+                            secondaryMetabolite={selectedMetabolite}
+                            molecularFormula={pubChemData?.formula}
+                            pubchemUrl={pubChemData?.pubchemUrl || (selectedMetabolite ? `https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(selectedMetabolite)}` : undefined)}
+                          />
+                        }
                         fileName={lang === "es" ? `auroria_reporte_${botanicalName.replace(/\s+/g, '_')}.pdf` : `auroria_report_${botanicalName.replace(/\s+/g, '_')}.pdf`}
                       >
                         {({ loading: pdfLoading }) => (

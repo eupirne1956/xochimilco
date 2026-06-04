@@ -1,37 +1,41 @@
-# Security Specification: User Profiles & Authentication Safeguards
+# Security Specification: User Profiles & Whitelist Access Control
 
-This document defines the strict relational invariants, security audit payloads, and verification directives for the `users` collection protected via Firebase Security Rules.
+This document defines the strict invariants, security audit payloads, and verification directives for the `users` and `authorized_users` collections protected via Firebase Security Rules.
 
 ## 1. Data Invariants
+
+### A. Collection `users`
 1. **Identity Integrity**: A user can only read, write, update, or delete their profile if their authenticated Firebase Auth UID matches the document ID `{userId}`.
 2. **Immutability check**: Core identity properties, such as `id`, `email`, and `createdAt` must remain immutable after insertion.
-3. **Impersonation Prevention**: Users cannot modify their profile fields to assume a different identity or spoof identifiers (e.g. email or username matching other users).
-4. **Length and Type Safety**: Field inputs such as name, username, and color are bound by specific format and character size limitations.
+3. **Verified Email constraint**: A user can only write their own email address as obtained from their authenticated credentials token.
 
-## 2. Invalidation & Pentest Payloads ("The Dirty Dozen")
-The following payloads are explicitly intended to violate security. The ruleset must synchronously block and raise `permission-denied` for each payload:
+### B. Collection `authorized_users`
+1. **Admin Exclusive Power**: Only authenticated and verified administrator accounts (`request.auth.token.email == "eupirne@gmail.com"`) can write, modify, list, or delete records in the authorized whitelist collection.
+2. **User Restricted Visibility**: A standard user can only `get` (read) their own authorization record (`request.auth.token.email.lower() == userEmail`). Standard users are strictly forbidden from listing, creating, or editing any elements of the whitelist.
+3. **Data Completeness**: Whitelist documents must have exactly four properties (`email`, `role`, `access_granted_at`, and `access_expires_at`), with strictly bounded data types (email matching, string format validations, and role values restricted to 'admin' or 'user').
 
-1. **Unauthenticated Write**: Creating a profile without a signed-in state.
-2. **Identity Spoofing**: Signed-in user `user_A` trying to create or modify a profile for `{userId}` equal to `user_B`.
-3. **Email Hijacking / Shadow Update**: Signed-in user attempts to overwrite another user's email address.
-4. **Immortality Bypass**: Signed-in user attempts to update the `createdAt` timestamp to block trace audits.
-5. **Overlong Username / Exhaustion Attack**: Injecting 10MB of data as a custom username.
-6. **Path Poisoning**: Injecting toxic character structures into the document path (e.g. HTML or command inject symbols).
-7. **Bypassing Verification**: Writing a profile without `request.auth.token.email_verified == true` (unless authenticated through trusted provider Google).
-8. **Malicious ID Mutation**: Authenticated user attempts to update their own `id` key inside the document body to mismatched values.
-9. **Dangling Fields**: Inserting un-schema'd elements (such as `isAdmin: true` or `role: "superuser"`) to compromise privilege elevations.
-10. **Type Inversion**: Supplying a numeric boolean as the `firstName` or `avatarColor` in place of standard strings.
-11. **Mismatched Authenticated Email**: Authenticated user attempts to write a document under their own UID, but specifying a different email address from their actual auth token.
-12. **Self-Elevating Admin**: Creating or updating user profile document containing field parameters that attempt to trigger server-privileged roles.
+## 2. Whitelist Pentest Payloads ("The Dirty Dozen")
 
-## 3. Test Cases Configuration
-Every attempt from a non-matching ID or non-validated email token results in a `PERMISSION_DENIED` exception.
+The security rules must block and deny access to all of the following malicious payloads:
+
+1. **Unauthenticated Whitelist Reading**: Checking the whitelist database while log-out.
+2. **Standard User Whitelist Mutation**: Standard user attempting to create an entry in the whitelist database.
+3. **Admin Identity Spoofing**: Standard user attempting to modify their role to `admin` in the whitelist record.
+4. **Whitelist Listing Scraping**: Standard user performing a `list` query across all authorized emails.
+5. **Dangling Whitelist Field Injection**: Inserting arbitrary fields such as `superPower: true` to bypass verification.
+6. **Date Overwrite to Eternity**: Attempting to alter `access_expires_at` value to a date far in the future as a non-admin.
+7. **Type Inversion on Role**: Sending a boolean `true` as the role string.
+8. **Malicious Email Document Path Escape**: Creating an email document ID containing malicious scripts or path injections.
+9. **Mismatched Email Document ID**: Sending an authorized user document whose inner `email` property differs from its document ID.
+10. **Bypassing Verification Claims**: Creating whitelist rules that trust client-side claims rather than querying Firestore.
+11. **Negative Grant Duration**: Bypassing expiry checks by submitting corrupted dates.
+12. **Locked Admin Mutation**: Standard user trying to delete the super admin's whitelist entry.
+
+## 3. Test Matrix Guidelines
 
 ```typescript
-import { assertFails, assertSucceeds } from "@firebase/rules-unit-testing";
-
 // Standard security matrix testing guidelines:
-// - authContext = null -> Read/Write fails
-// - authContext = { uid: "user_A", token: { email_verified: true } } -> read /write /users/user_A succeeds
-// - authContext = { uid: "user_A", token: { email_verified: true } } -> read /write /users/user_B fails
+// - authContext = null -> Read/Write for any path fails
+// - authContext = { email: "eupirne@gmail.com", email_verified: true } -> read/write anywhere succeeds
+// - authContext = { email: "user@example.com", email_verified: true } -> get /authorized_users/user@example.com succeeds, write/list fails.
 ```

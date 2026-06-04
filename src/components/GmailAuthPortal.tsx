@@ -53,6 +53,17 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
 
   const curr = t[lang];
 
+  const parseFirestoreTimestamp = (val: any): Date => {
+    if (!val) return new Date(0);
+    if (typeof val.toDate === "function") {
+      return val.toDate();
+    }
+    if (val.seconds !== undefined) {
+      return new Date(val.seconds * 1000);
+    }
+    return new Date(val);
+  };
+
   const handleGoogleSignIn = async () => {
     try {
       setErrorText("");
@@ -60,13 +71,78 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-      
+      const userEmail = user.email ? user.email.toLowerCase() : "";
+
+      if (!userEmail) {
+        await auth.signOut();
+        setErrorText(lang === "es" ? "No se pudo obtener un correo electrónico válido." : "Failed to obtain a valid email address.");
+        return;
+      }
+
+      const isAdminUser = userEmail === "eupirne@gmail.com";
+      let whitelistVerified = false;
+      let userRole: "admin" | "user" = "user";
+      let expirationDate: Date | null = null;
+
+      if (isAdminUser) {
+        whitelistVerified = true;
+        userRole = "admin";
+        // Let's attempt to update the admin whitelist profile in Firestore in the background
+        try {
+          const adminDocRef = doc(db, "authorized_users", userEmail);
+          await setDoc(adminDocRef, {
+            email: userEmail,
+            role: "admin",
+            access_granted_at: new Date(),
+            access_expires_at: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000) // 100 years
+          }, { merge: true });
+        } catch (dbErr) {
+          console.warn("Could not sync super-admin profile to authorized_users in background:", dbErr);
+        }
+      } else {
+        // Fetch whitelist document
+        const whitelistDocRef = doc(db, "authorized_users", userEmail);
+        const whitelistDoc = await getDoc(whitelistDocRef);
+
+        if (!whitelistDoc.exists()) {
+          await auth.signOut();
+          setErrorText(
+            lang === "es"
+              ? `Acceso Denegado: La cuenta (${userEmail}) no está registrada en la lista de accesos aprobados de Atajos.`
+              : `Access Denied: The account (${userEmail}) is not on the approved Atajos whitelist.`
+          );
+          return;
+        }
+
+        const data = whitelistDoc.data();
+        userRole = data.role === "admin" ? "admin" : "user";
+        expirationDate = parseFirestoreTimestamp(data.access_expires_at);
+        const now = new Date();
+
+        if (now > expirationDate) {
+          await auth.signOut();
+          const dateStr = expirationDate.toLocaleString();
+          setErrorText(
+            lang === "es"
+              ? `Acceso Expirado: Su período de autorización finalizó el ${dateStr}. Solicite una extensión al administrador.`
+              : `Access Expired: Your authorization period ended on ${dateStr}. Please request an extension from the administrator.`
+          );
+          return;
+        }
+
+        whitelistVerified = true;
+      }
+
+      // Check users collection next for UI parameters
       const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
       
       let finalUser: GmailUser;
       if (userDoc.exists()) {
-        finalUser = userDoc.data() as GmailUser;
+        finalUser = {
+          ...userDoc.data() as GmailUser,
+          role: userRole
+        };
       } else {
         // Create a new Firestore user profile on first Google Login
         const fullName = user.displayName || "Explorer";
@@ -86,10 +162,13 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
           lastName,
           username,
           avatarColor,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          role: userRole
         };
         
-        await setDoc(userDocRef, finalUser);
+        // Write standard 7 keys document (WITHOUT role parameter) to Firestore users database
+        const { role, ...firestorePayload } = finalUser;
+        await setDoc(userDocRef, firestorePayload);
       }
 
       // Add to local switcher state for smooth session recovery inside App
@@ -229,7 +308,7 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
               </button>
             </div>
 
-            <div className="text-[10px] text-slate-400 font-mono tracking-wider flex items-center justify-center gap-1 bg-slate-100/50 py-1 rounded-full border border-slate-150/40 select-none">
+            <div className="text-[10px] text-slate-400 font-mono tracking-wider flex items-center justify-center gap-1 bg-slate-100/50 py-2 rounded-full border border-slate-150/40 select-none">
               <span className="w-1.5 h-1.5 rounded-full bg-[#34A853] inline-block animate-pulse" />
               <span>{lang === "es" ? "MÉTODO DE AUTENTICACIÓN GOOGLE" : "GOOGLE AUTH USE METHOD"}</span>
             </div>

@@ -636,7 +636,7 @@ export const generateResearch = async (query: string, language: 'en' | 'es') => 
     1. Los DOIs y nombres de autores deben ser 100% exactos. 
     2. Si un link o DOI no es verificable al 100%, NO LO INCLUYAS. 
     3. No inventes referencias. Es preferible omitir secciones bibliográficas dudosas que proporcionar datos erróneos.
-    No usar Mojibake.
+    No usar Mojibake. EVITAR ABSOLUTAMENTE el uso de emojis, iconos emocionales, carateres especiales incompatibles o bloques de código de programación en el cuerpo de la investigación para asegurar un formato de texto simple, uniforme y limpio compatible con la descarga de documentos PDF.
   `;
 
   try {
@@ -1407,7 +1407,7 @@ REQUISITOS DEL REPORTE:
    ## 6. Bibliografía
    Citación numérica de corchetes exclusiva (p. ej., [1], [2]). Guías legítimas para referenciar: ${isOral ? "[1] Guía de la EFSA sobre la evaluación de la seguridad de preparados botánicos, [2] Norma Oficial Mexicana NOM-073-SSA1-2015, Estabilidad de remedios herbolarios, [3] Directrices de la OMS para el control de calidad de plantas medicinales, [4] Principios y métodos de la FAO/OMS para la evaluación de riesgos de sustancias químicas en alimentos." : "[1] SCCS Notes of Guidance 12th Revision (SCCS/1647/22, Link: https://health.ec.europa.eu/publications/sccs-notes-guidance-testing-cosmetic-ingredients-and-their-safety-evaluation-12th-revision_en), [2] Norma Oficial Mexicana NOM-073-SSA1-2015, Estabilidad de remedios herbolarios, [3] WHO Guidelines on Quality of Herbal Medicines, [4] Critical Evaluation of the Safety of Topical Dermal Application."} Omite referencias huérfanas de forma limpia.
    
-   IMPORTANTE: Al comenzar el reporte, debes escribir exactamente el protocolo de iniciación solicitado: "Iniciando análisis fitoquímico y toxicológico bajo los estándares de AurorIA..." en un renglón destacado por separado. No utilices caracteres Mojibake ni alucinaciones absurdas. Justifica tus fuentes en estudios científicos reales.
+   IMPORTANTE: Al comenzar el reporte, debes escribir exactamente el protocolo de iniciación solicitado: "Iniciando análisis fitoquímico y toxicológico bajo los estándares de AurorIA..." en un renglón destacado por separado. No utilices caracteres Mojibake ni alucinaciones absurdas. EVITAR ABSOLUTAMENTE el uso de emojis, iconos emocionales, caracteres especiales incompatibles o bloques de código de programación en el cuerpo de la respuesta para garantizar un formato de texto simple y uniforme compatible con la generación de reportes en PDF. Justifica tus fuentes en estudios científicos reales.
 `;
 
   try {
@@ -1859,10 +1859,663 @@ export interface PubChemCompoundData {
  * Feeds compound name to PubChem PUG REST API to get structure,
  * and uses Gemini Search Grounding to extract complex toxicological limits (NOAEL, LD50, etc.).
  */
+// Runtime session cache to avoid redundant API or Gemini requests
+const pubChemMemoryCache: Record<string, PubChemCompoundData> = {};
+
+// Helper to normalize compound names (lowercase, no accents)
+const normalizeCompoundName = (name: string): string => {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove accents
+    .replace(/[/\-_]/g, " ") // replace slashes/dashes
+    .trim();
+};
+
+// Extremely fast precompiled database of common botanical metabolites to load instantly
+const PRECOMPILED_METABOLITES: Record<string, PubChemCompoundData> = {
+  "mentol": {
+    cid: 1254,
+    name: "Menthol",
+    formula: "C10H20O",
+    molecularWeight: "156.27",
+    smiles: "CC1CCC(CC1O)C(C)C",
+    iupacName: "5-methyl-2-(propan-2-yl)cyclohexan-1-ol",
+    xLogP: "3.4",
+    noael: "150",
+    ld50: "3300 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H315: Causes skin irritation", "H319: Causes serious eye irritation"],
+    toxicitySummary: "Menthol is a naturally occurring terpene alcohol. It is generally low in toxicity, though it acts as a mild skin and eye irritant at higher concentrations. Experimental NOAEL is well established from subchronic studies.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/1254"
+  },
+  "menthol": {
+    cid: 1254,
+    name: "Menthol",
+    formula: "C10H20O",
+    molecularWeight: "156.27",
+    smiles: "CC1CCC(CC1O)C(C)C",
+    iupacName: "5-methyl-2-(propan-2-yl)cyclohexan-1-ol",
+    xLogP: "3.4",
+    noael: "150",
+    ld50: "3300 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H315: Causes skin irritation", "H319: Causes serious eye irritation"],
+    toxicitySummary: "Menthol is a naturally occurring terpene alcohol. It is generally low in toxicity, though it acts as a mild skin and eye irritant at higher concentrations. Experimental NOAEL is well established from subchronic studies.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/1254"
+  },
+  "alcanfor": {
+    cid: 2537,
+    name: "Camphor",
+    formula: "C10H16O",
+    molecularWeight: "152.23",
+    smiles: "CC1(C2CCC1(C(=O)C2)C)C",
+    iupacName: "1,7,7-trimethylbicyclo[2.2.1]heptan-2-one",
+    xLogP: "2.4",
+    noael: "120",
+    ld50: "1310 mg/kg (oral, mouse)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H228: Flammable solid", "H302: Harmful if swallowed", "H332: Harmful if inhaled", "H371: May cause damage to organs"],
+    toxicitySummary: "Camphor is a bicyclic monoterpene ketone. It is quickly absorbed through the skin and mucosa. Excessive exposure can cause central nervous system irritation, but controlled cosmetic levels are evaluated as safe.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/2537"
+  },
+  "camphor": {
+    cid: 2537,
+    name: "Camphor",
+    formula: "C10H16O",
+    molecularWeight: "152.23",
+    smiles: "CC1(C2CCC1(C(=O)C2)C)C",
+    iupacName: "1,7,7-trimethylbicyclo[2.2.1]heptan-2-one",
+    xLogP: "2.4",
+    noael: "120",
+    ld50: "1310 mg/kg (oral, mouse)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H228: Flammable solid", "H302: Harmful if swallowed", "H332: Harmful if inhaled", "H371: May cause damage to organs"],
+    toxicitySummary: "Camphor is a bicyclic monoterpene ketone. It is quickly absorbed through the skin and mucosa. Excessive exposure can cause central nervous system irritation, but controlled cosmetic levels are evaluated as safe.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/2537"
+  },
+  "linalol": {
+    cid: 6549,
+    name: "Linalool",
+    formula: "C10H18O",
+    molecularWeight: "154.25",
+    smiles: "CC(=CCCC(C)(C=C)O)C",
+    iupacName: "3,7-dimethylocta-1,6-dien-3-ol",
+    xLogP: "2.9",
+    noael: "200",
+    ld50: "2790 mg/kg (oral, rat)",
+    dermalAbsorption: "12.0",
+    ghsHazards: ["H315: Causes skin irritation", "H317: May cause an allergic skin reaction", "H319: Causes serious eye irritation"],
+    toxicitySummary: "Linalool is a terpene alcohol found in lavender and other flowers. It is widely used as a fragrance ingredient. Oxidized linalool is a known skin sensitizer; otherwise, raw linalool displays favorable toxicological safety.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/6549"
+  },
+  "linalool": {
+    cid: 6549,
+    name: "Linalool",
+    formula: "C10H18O",
+    molecularWeight: "154.25",
+    smiles: "CC(=CCCC(C)(C=C)O)C",
+    iupacName: "3,7-dimethylocta-1,6-dien-3-ol",
+    xLogP: "2.9",
+    noael: "200",
+    ld50: "2790 mg/kg (oral, rat)",
+    dermalAbsorption: "12.0",
+    ghsHazards: ["H315: Causes skin irritation", "H317: May cause an allergic skin reaction", "H319: Causes serious eye irritation"],
+    toxicitySummary: "Linalool is a terpene alcohol found in lavender and other flowers. It is widely used as a fragrance ingredient. Oxidized linalool is a known skin sensitizer; otherwise, raw linalool displays favorable toxicological safety.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/6549"
+  },
+  "acido salicilico": {
+    cid: 338,
+    name: "Salicylic acid",
+    formula: "C7H6O3",
+    molecularWeight: "138.12",
+    smiles: "C1=CC=C(C(=C1)C(=O)O)O",
+    iupacName: "2-hydroxybenzoic acid",
+    xLogP: "2.3",
+    noael: "100",
+    ld50: "891 mg/kg (oral, rat)",
+    dermalAbsorption: "15.0",
+    ghsHazards: ["H302: Harmful if swallowed", "H318: Causes serious eye damage", "H361d: Suspected of damaging the unborn child"],
+    toxicitySummary: "Salicylic acid is a beta hydroxy acid with keratolytic and anti-inflammatory properties. Concentrated exposures show potential developmental hazards under high oral dosages, but topical/cosmetic levels (up to 2%) represent safe daily usage.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/338"
+  },
+  "salicylic acid": {
+    cid: 338,
+    name: "Salicylic acid",
+    formula: "C7H6O3",
+    molecularWeight: "138.12",
+    smiles: "C1=CC=C(C(=C1)C(=O)O)O",
+    iupacName: "2-hydroxybenzoic acid",
+    xLogP: "2.3",
+    noael: "100",
+    ld50: "891 mg/kg (oral, rat)",
+    dermalAbsorption: "15.0",
+    ghsHazards: ["H302: Harmful if swallowed", "H318: Causes serious eye damage", "H361d: Suspected of damaging the unborn child"],
+    toxicitySummary: "Salicylic acid is a beta hydroxy acid with keratolytic and anti-inflammatory properties. Concentrated exposures show potential developmental hazards under high oral dosages, but topical/cosmetic levels (up to 2%) represent safe daily usage.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/338"
+  },
+  "salicilico": {
+    cid: 338,
+    name: "Salicylic acid",
+    formula: "C7H6O3",
+    molecularWeight: "138.12",
+    smiles: "C1=CC=C(C(=C1)C(=O)O)O",
+    iupacName: "2-hydroxybenzoic acid",
+    xLogP: "2.3",
+    noael: "100",
+    ld50: "891 mg/kg (oral, rat)",
+    dermalAbsorption: "15.0",
+    ghsHazards: ["H302: Harmful if swallowed", "H318: Causes serious eye damage", "H361d: Suspected of damaging the unborn child"],
+    toxicitySummary: "Salicylic acid is a beta hydroxy acid with keratolytic and anti-inflammatory properties. Concentrated exposures show potential developmental hazards under high oral dosages, but topical/cosmetic levels (up to 2%) represent safe daily usage.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/338"
+  },
+  "quercetina": {
+    cid: 5280343,
+    name: "Quercetin",
+    formula: "C15H10O7",
+    molecularWeight: "302.24",
+    smiles: "C1=CC(=C(C=C1C2=C(C(=O)C3=C(C=C(C=C3O2)O)O)O)O)O",
+    iupacName: "2-(3,4-dihydroxyphenyl)-3,5,7-trihydroxychromen-4-one",
+    xLogP: "1.5",
+    noael: "300",
+    ld50: "159 mg/kg (oral, mouse)",
+    dermalAbsorption: "5.0",
+    ghsHazards: ["H301: Toxic if swallowed"],
+    toxicitySummary: "Quercetin is a prominent plant flavonol antioxidant found in onions, tea, and apples. It exhibits strong anti-inflammatory and free radical scavenging. Favorable safety profile for topical and dermal applications.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/5280343"
+  },
+  "quercetin": {
+    cid: 5280343,
+    name: "Quercetin",
+    formula: "C15H10O7",
+    molecularWeight: "302.24",
+    smiles: "C1=CC(=C(C=C1C2=C(C(=O)C3=C(C=C(C=C3O2)O)O)O)O)O",
+    iupacName: "2-(3,4-dihydroxyphenyl)-3,5,7-trihydroxychromen-4-one",
+    xLogP: "1.5",
+    noael: "300",
+    ld50: "159 mg/kg (oral, mouse)",
+    dermalAbsorption: "5.0",
+    ghsHazards: ["H301: Toxic if swallowed"],
+    toxicitySummary: "Quercetin is a prominent plant flavonol antioxidant found in onions, tea, and apples. It exhibits strong anti-inflammatory and free radical scavenging. Favorable safety profile for topical and dermal applications.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/5280343"
+  },
+  "geraniol": {
+    cid: 637566,
+    name: "Geraniol",
+    formula: "C10H18O",
+    molecularWeight: "154.25",
+    smiles: "CC(=CCCC(=CCO)C)C",
+    iupacName: "(2E)-3,7-dimethylocta-2,6-dien-1-ol",
+    xLogP: "3.6",
+    noael: "300",
+    ld50: "3600 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H315: Causes skin irritation", "H317: May cause an allergic skin reaction", "H318: Causes serious eye damage"],
+    toxicitySummary: "Geraniol is a monoterpenoid alcohol and a major component of rose oil and palmarosa oil. It is a known fragrance allergen in cosmetics but shows excellent systemic safety profiles at low concentration levels.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/637566"
+  },
+  "cafeina": {
+    cid: 2519,
+    name: "Caffeine",
+    formula: "C8H10N4O2",
+    molecularWeight: "194.19",
+    smiles: "CN1C=NC2=C1C(=O)N(C(=O)N2C)C",
+    iupacName: "1,3,7-trimethylpurine-2,6-dione",
+    xLogP: "-0.1",
+    noael: "150",
+    ld50: "192 mg/kg (oral, rat)",
+    dermalAbsorption: "20.0",
+    ghsHazards: ["H302: Harmful if swallowed"],
+    toxicitySummary: "Caffeine is a central nervous system stimulant. Topically, it is used for microcirculation and antioxidant effects. Dermal absorption is relatively high, and systemic limits are defined by cardiovascular stimulant thresholds.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/2519"
+  },
+  "caffeine": {
+    cid: 2519,
+    name: "Caffeine",
+    formula: "C8H10N4O2",
+    molecularWeight: "194.19",
+    smiles: "CN1C=NC2=C1C(=O)N(C(=O)N2C)C",
+    iupacName: "1,3,7-trimethylpurine-2,6-dione",
+    xLogP: "-0.1",
+    noael: "150",
+    ld50: "192 mg/kg (oral, rat)",
+    dermalAbsorption: "20.0",
+    ghsHazards: ["H302: Harmful if swallowed"],
+    toxicitySummary: "Caffeine is a central nervous system stimulant. Topically, it is used for microcirculation and antioxidant effects. Dermal absorption is relatively high, and systemic limits are defined by cardiovascular stimulant thresholds.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/2519"
+  },
+  "timol": {
+    cid: 6989,
+    name: "Thymol",
+    formula: "C10H14O",
+    molecularWeight: "150.22",
+    smiles: "CC1=CC(=C(C(=C1)C(C)C)O)C",
+    iupacName: "5-methyl-2-(propan-2-yl)phenol",
+    xLogP: "3.3",
+    noael: "50",
+    ld50: "980 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H302: Harmful if swallowed", "H314: Causes severe skin burns and eye damage", "H411: Toxic to aquatic life with long lasting effects"],
+    toxicitySummary: "Thymol is a natural monoterpene phenol found in thyme oil. It possesses strong antiseptic and antimicrobial activities. It is a skin irritant at pure concentrations but safe at diluted levels in cosmetics.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/6989"
+  },
+  "thymol": {
+    cid: 6989,
+    name: "Thymol",
+    formula: "C10H14O",
+    molecularWeight: "150.22",
+    smiles: "CC1=CC(=C(C(=C1)C(C)C)O)C",
+    iupacName: "5-methyl-2-(propan-2-yl)phenol",
+    xLogP: "3.3",
+    noael: "50",
+    ld50: "980 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H302: Harmful if swallowed", "H314: Causes severe skin burns and eye damage", "H411: Toxic to aquatic life with long lasting effects"],
+    toxicitySummary: "Thymol is a natural monoterpene phenol found in thyme oil. It possesses strong antiseptic and antimicrobial activities. It is a skin irritant at pure concentrations but safe at diluted levels in cosmetics.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/6989"
+  },
+  "eugenol": {
+    cid: 3314,
+    name: "Eugenol",
+    formula: "C10H12O2",
+    molecularWeight: "164.20",
+    smiles: "COC1=C(C=CC(=C1)CC=C)O",
+    iupacName: "2-methoxy-4-(prop-2-en-1-yl)phenol",
+    xLogP: "2.3",
+    noael: "250",
+    ld50: "1930 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H302: Harmful if swallowed", "H317: May cause an allergic skin reaction", "H319: Causes serious eye irritation"],
+    toxicitySummary: "Eugenol is an aromatic phenylpropanoid compound extracted from cloves. It acts as a local anesthetic and antiseptic but can be a sensitizing agent on skin. Systemic toxicity is low with generous NOAEL safety factors.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/3314"
+  },
+  "limoneno": {
+    cid: 223111,
+    name: "Limonene",
+    formula: "C10H16",
+    molecularWeight: "136.23",
+    smiles: "CC1=CCC(CC1)C(=C)C",
+    iupacName: "1-methyl-4-(prop-1-en-2-yl)cyclohex-1-ene",
+    xLogP: "4.3",
+    noael: "250",
+    ld50: "4400 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H226: Flammable liquid and vapor", "H315: Causes skin irritation", "H317: May cause an allergic skin reaction", "H410: Very toxic to aquatic life with long lasting effects"],
+    toxicitySummary: "Limonene is a liquid cyclic monoterpene hydrocarbon with citrus odor. It is widely used as a green solvent and scent. Readily oxidizes upon exposure to air to form sensitizing hydroperoxides.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/223111"
+  },
+  "limonene": {
+    cid: 223111,
+    name: "Limonene",
+    formula: "C10H16",
+    molecularWeight: "136.23",
+    smiles: "CC1=CCC(CC1)C(=C)C",
+    iupacName: "1-methyl-4-(prop-1-en-2-yl)cyclohex-1-ene",
+    xLogP: "4.3",
+    noael: "250",
+    ld50: "4400 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H226: Flammable liquid and vapor", "H315: Causes skin irritation", "H317: May cause an allergic skin reaction", "H410: Very toxic to aquatic life with long lasting effects"],
+    toxicitySummary: "Limonene is a liquid cyclic monoterpene hydrocarbon with citrus odor. It is widely used as a green solvent and scent. Readily oxidizes upon exposure to air to form sensitizing hydroperoxides.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/223111"
+  },
+  "resveratrol": {
+    cid: 445154,
+    name: "Resveratrol",
+    formula: "C14H12O3",
+    molecularWeight: "228.24",
+    smiles: "C1=CC(=CC=C1C=CC2=CC(=CC(=C2)O)O)O",
+    iupacName: "5-[(E)-2-(4-hydroxyphenyl)ethenyl]benzene-1,3-diol",
+    xLogP: "3.1",
+    noael: "300",
+    ld50: ">2000 mg/kg (oral, rat)",
+    dermalAbsorption: "5.0",
+    ghsHazards: ["H315: Causes skin irritation", "H319: Causes serious eye irritation", "H335: May cause respiratory irritation"],
+    toxicitySummary: "Resveratrol is a natural stilbenoid phytoalexin antioxidant found in red grapes and berries. Recognized as highly safe with minimal cosmetic toxicity and robust anti-aging protective profiles.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/445154"
+  },
+  "curcumina": {
+    cid: 969516,
+    name: "Curcumin",
+    formula: "C21H20O6",
+    molecularWeight: "368.4",
+    smiles: "COC1=C(C=CC(=C1)C=CC(=O)CC(=O)C=CC2=CC(=C(C=C2)O)OC)O",
+    iupacName: "(1E,6E)-1,7-bis(4-hydroxy-3-methoxyphenyl)hepta-1,6-diene-3,5-dione",
+    xLogP: "3.2",
+    noael: "1000",
+    ld50: ">5000 mg/kg (oral, rat)",
+    dermalAbsorption: "5.0",
+    ghsHazards: ["H315: Causes skin irritation", "H319: Causes serious eye irritation"],
+    toxicitySummary: "Curcumin is the primary diarylheptanoid in turmeric. It exhibits broad medicinal safety and high oral intake thresholds. Extremely low toxicity, safe for cosmetic applications.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/969516"
+  },
+  "curcumin": {
+    cid: 969516,
+    name: "Curcumin",
+    formula: "C21H20O6",
+    molecularWeight: "368.4",
+    smiles: "COC1=C(C=CC(=C1)C=CC(=O)CC(=O)C=CC2=CC(=C(C=C2)O)OC)O",
+    iupacName: "(1E,6E)-1,7-bis(4-hydroxy-3-methoxyphenyl)hepta-1,6-diene-3,5-dione",
+    xLogP: "3.2",
+    noael: "1000",
+    ld50: ">5000 mg/kg (oral, rat)",
+    dermalAbsorption: "5.0",
+    ghsHazards: ["H315: Causes skin irritation", "H319: Causes serious eye irritation"],
+    toxicitySummary: "Curcumin is the primary diarylheptanoid in turmeric. It exhibits broad medicinal safety and high oral intake thresholds. Extremely low toxicity, safe for cosmetic applications.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/969516"
+  },
+  "capsaicina": {
+    cid: 1548943,
+    name: "Capsaicin",
+    formula: "C18H27NO3",
+    molecularWeight: "305.4",
+    smiles: "CC(C)C=CCCCC(=O)NCC1=CC(=C(C=C1)O)OC",
+    iupacName: "(E)-N-[(4-hydroxy-3-methoxyphenyl)methyl]-8-methylnon-6-enamide",
+    xLogP: "4.0",
+    noael: "50",
+    ld50: "148 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H301: Toxic if swallowed", "H315: Causes skin irritation", "H317: May cause an allergic skin reaction", "H318: Causes serious eye damage", "H335: May cause respiratory irritation"],
+    toxicitySummary: "Capsaicin is an active alkaloid of chili peppers. It is an irritant which activates TRPV1 receptors. Useful in warming or pain-relief cosmetics, but must be strongly diluted (<0.1%) to prevent burning sensations.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/1548943"
+  },
+  "capsaicin": {
+    cid: 1548943,
+    name: "Capsaicin",
+    formula: "C18H27NO3",
+    molecularWeight: "305.4",
+    smiles: "CC(C)C=CCCCC(=O)NCC1=CC(=C(C=C1)O)OC",
+    iupacName: "(E)-N-[(4-hydroxy-3-methoxyphenyl)methyl]-8-methylnon-6-enamide",
+    xLogP: "4.0",
+    noael: "50",
+    ld50: "148 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H301: Toxic if swallowed", "H315: Causes skin irritation", "H317: May cause an allergic skin reaction", "H318: Causes serious eye damage", "H335: May cause respiratory irritation"],
+    toxicitySummary: "Capsaicin is an active alkaloid of chili peppers. It is an irritant which activates TRPV1 receptors. Useful in warming or pain-relief cosmetics, but must be strongly diluted (<0.1%) to prevent burning sensations.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/1548943"
+  },
+  "carvacrol": {
+    cid: 10350,
+    name: "Carvacrol",
+    formula: "C10H14O",
+    molecularWeight: "150.22",
+    smiles: "CC1=C(C=C(C=C1)C(C)C)O",
+    iupacName: "2-methyl-5-(propan-2-yl)phenol",
+    xLogP: "3.4",
+    noael: "50",
+    ld50: "810 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H302: Harmful if swallowed", "H314: Causes severe skin burns and eye damage", "H317: May cause an allergic skin reaction", "H411: Toxic to aquatic life with long lasting effects"],
+    toxicitySummary: "Carvacrol is a monoterpenoid phenol found in oregano. Highly antimicrobial and antioxidant. Concentrate is skin corrosive but well-diluted preparations show outstanding security profiles in dermal formulations.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/10350"
+  },
+  "pulegona": {
+    cid: 442495,
+    name: "Pulegone",
+    formula: "C10H16O",
+    molecularWeight: "152.23",
+    smiles: "CC1CCC(=C(C)C)C(=O)C1",
+    iupacName: "(5R)-5-methyl-2-(propan-2-ylidene)cyclohexan-1-one",
+    xLogP: "2.3",
+    noael: "10",
+    ld50: "470 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H302: Harmful if swallowed", "H351: Suspected of causing cancer"],
+    toxicitySummary: "Pulegone is a monoterpene ketone in pennyroyal. High hepatotoxic agent associated with cytochrome P450 activation to reactive menthofuran. SCCS and EMA recommend maintaining minimal levels in herbal preparations due to safety margins.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/442495"
+  },
+  "pulegone": {
+    cid: 442495,
+    name: "Pulegone",
+    formula: "C10H16O",
+    molecularWeight: "152.23",
+    smiles: "CC1CCC(=C(C)C)C(=O)C1",
+    iupacName: "(5R)-5-methyl-2-(propan-2-ylidene)cyclohexan-1-one",
+    xLogP: "2.3",
+    noael: "10",
+    ld50: "470 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H302: Harmful if swallowed", "H351: Suspected of causing cancer"],
+    toxicitySummary: "Pulegone is a monoterpene ketone in pennyroyal. High hepatotoxic agent associated with cytochrome P450 activation to reactive menthofuran. SCCS and EMA recommend maintaining minimal levels in herbal preparations due to safety margins.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/442495"
+  },
+  "cineol": {
+    cid: 2758,
+    name: "Cineole",
+    formula: "C10H18O",
+    molecularWeight: "154.25",
+    smiles: "CC12CCC(CC1)(O2)C(C)C",
+    iupacName: "1,3,3-trimethyl-2-oxabicyclo[2.2.2]octane",
+    xLogP: "2.8",
+    noael: "300",
+    ld50: "2480 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H226: Flammable liquid and vapor", "H302: Harmful if swallowed", "H317: May cause an allergic skin reaction"],
+    toxicitySummary: "Cineole or Eucalyptol is a natural monoterpene ether majorly present in eucalyptus oil. It has decongestant and anti-inflammatory properties, with broad system safety thresholds under controlled concentrations.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/2758"
+  },
+  "eucaliptol": {
+    cid: 2758,
+    name: "Cineole",
+    formula: "C10H18O",
+    molecularWeight: "154.25",
+    smiles: "CC12CCC(CC1)(O2)C(C)C",
+    iupacName: "1,3,3-trimethyl-2-oxabicyclo[2.2.2]octane",
+    xLogP: "2.8",
+    noael: "300",
+    ld50: "2480 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H226: Flammable liquid and vapor", "H302: Harmful if swallowed", "H317: May cause an allergic skin reaction"],
+    toxicitySummary: "Cineole or Eucalyptol is a natural monoterpene ether majorly present in eucalyptus oil. It has decongestant and anti-inflammatory properties, with broad system safety thresholds under controlled concentrations.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/2758"
+  },
+  "eucalyptol": {
+    cid: 2758,
+    name: "Cineole",
+    formula: "C10H18O",
+    molecularWeight: "154.25",
+    smiles: "CC12CCC(CC1)(O2)C(C)C",
+    iupacName: "1,3,3-trimethyl-2-oxabicyclo[2.2.2]octane",
+    xLogP: "2.8",
+    noael: "300",
+    ld50: "2480 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H226: Flammable liquid and vapor", "H302: Harmful if swallowed", "H317: May cause an allergic skin reaction"],
+    toxicitySummary: "Cineole or Eucalyptol is a natural monoterpene ether majorly present in eucalyptus oil. It has decongestant and anti-inflammatory properties, with broad system safety thresholds under controlled concentrations.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/2758"
+  },
+  "cineole": {
+    cid: 2758,
+    name: "Cineole",
+    formula: "C10H18O",
+    molecularWeight: "154.25",
+    smiles: "CC12CCC(CC1)(O2)C(C)C",
+    iupacName: "1,3,3-trimethyl-2-oxabicyclo[2.2.2]octane",
+    xLogP: "2.8",
+    noael: "300",
+    ld50: "2480 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H226: Flammable liquid and vapor", "H302: Harmful if swallowed", "H317: May cause an allergic skin reaction"],
+    toxicitySummary: "Cineole or Eucalyptol is a natural monoterpene ether majorly present in eucalyptus oil. It has decongestant and anti-inflammatory properties, with broad system safety thresholds under controlled concentrations.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/2758"
+  },
+  "citronelol": {
+    cid: 8842,
+    name: "Citronellol",
+    formula: "C10H20O",
+    molecularWeight: "156.27",
+    smiles: "CC(CCC=C(C)C)CCO",
+    iupacName: "3,7-dimethyloct-6-en-1-ol",
+    xLogP: "3.5",
+    noael: "200",
+    ld50: "3450 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H315: Causes skin irritation", "H317: May cause an allergic skin reaction", "H319: Causes serious eye irritation"],
+    toxicitySummary: "Citronellol is a natural acyclic monoterpenoid. Common in lemongrass and geranium oils. Evaluated as a mild skin irritant and moderate allergen; high systemic NOAEL safety profile.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/8842"
+  },
+  "citronellol": {
+    cid: 8842,
+    name: "Citronellol",
+    formula: "C10H20O",
+    molecularWeight: "156.27",
+    smiles: "CC(CCC=C(C)C)CCO",
+    iupacName: "3,7-dimethyloct-6-en-1-ol",
+    xLogP: "3.5",
+    noael: "200",
+    ld50: "3450 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H315: Causes skin irritation", "H317: May cause an allergic skin reaction", "H319: Causes serious eye irritation"],
+    toxicitySummary: "Citronellol is a natural acyclic monoterpenoid. Common in lemongrass and geranium oils. Evaluated as a mild skin irritant and moderate allergen; high systemic NOAEL safety profile.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/8842"
+  },
+  "citral": {
+    cid: 638011,
+    name: "Citral",
+    formula: "C10H16O",
+    molecularWeight: "152.23",
+    smiles: "CC(=CCCC(=CC=O)C)C",
+    iupacName: "3,7-dimethylocta-2,6-dienal",
+    xLogP: "3.2",
+    noael: "100",
+    ld50: "4960 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H315: Causes skin irritation", "H317: May cause an allergic skin reaction", "H319: Causes serious eye irritation"],
+    toxicitySummary: "Citral is an isomeric mixture of geranial and neral aldehyde monoterpenes. Potent lemon odor. Well-known standard allergen that must be declared in cosmetics, but with clean systematic toxicology margins.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/638011"
+  },
+  "allantoin": {
+    cid: 204,
+    name: "Allantoin",
+    formula: "C4H6N4O3",
+    molecularWeight: "158.12",
+    smiles: "C1(C(=O)NC(=O)N1)NC(=O)N",
+    iupacName: "(2,5-dioxoimidazolidin-4-yl)urea",
+    xLogP: "-2.3",
+    noael: "1000",
+    ld50: ">5000 mg/kg (oral, rat)",
+    dermalAbsorption: "5.0",
+    ghsHazards: [],
+    toxicitySummary: "Allantoin is a soothing and keratolytic compound widely used in cosmetics. It is extremely safe, non-toxic, and has a very high safety threshold with virtually zero dermal irritation.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/204"
+  },
+  "alantoina": {
+    cid: 204,
+    name: "Allantoin",
+    formula: "C4H6N4O3",
+    molecularWeight: "158.12",
+    smiles: "C1(C(=O)NC(=O)N1)NC(=O)N",
+    iupacName: "(2,5-dioxoimidazolidin-4-yl)urea",
+    xLogP: "-2.3",
+    noael: "1000",
+    ld50: ">5000 mg/kg (oral, rat)",
+    dermalAbsorption: "5.0",
+    ghsHazards: [],
+    toxicitySummary: "Allantoin is a soothing and keratolytic compound widely used in cosmetics. It is extremely safe, non-toxic, and has a very high safety threshold with virtually zero dermal irritation.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/204"
+  },
+  "bisabolol": {
+    cid: 5315809,
+    name: "Bisabolol",
+    formula: "C15H26O",
+    molecularWeight: "222.37",
+    smiles: "CC1=CCC(CC1)C(C)(CCCC(=C)C)O",
+    iupacName: "6-methyl-2-(4-methylcyclohex-3-en-1-yl)hept-5-en-2-ol",
+    xLogP: "4.8",
+    noael: "200",
+    ld50: ">5000 mg/kg (oral, rat)",
+    dermalAbsorption: "5.0",
+    ghsHazards: ["H411: Toxic to aquatic life with long lasting effects"],
+    toxicitySummary: "Bisabolol is a natural monocyclic sesquiterpene alcohol from Chamomile. Highly valued for soothing, skin healing, and low toxic potential. Displays extremely high dermal and systemic compatibility.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/5315809"
+  },
+  "boldina": {
+    cid: 72474,
+    name: "Boldine",
+    formula: "C19H21NO4",
+    molecularWeight: "327.4",
+    smiles: "CN1CCC23C4=C(C=C(C2=CC5=C3C1CC6=C5O/C(=C\\6)/O)OC)O",
+    iupacName: "(6aS)-1,10-dimethoxy-6-methyl-5,6,6a,7-tetrahydro-4H-dibenzo[de,g]quinoline-2,9-diol",
+    xLogP: "2.1",
+    noael: "40",
+    ld50: "450 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H302: Harmful if swallowed", "H315: Causes skin irritation", "H319: Causes serious eye irritation"],
+    toxicitySummary: "Boldine is an alkaloid antioxidant found in boldu leaves. It is generally low in toxicity but excessive amounts can have neurological or hepatotoxic properties. Safe for minor skin treatments.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/72474"
+  },
+  "boldine": {
+    cid: 72474,
+    name: "Boldine",
+    formula: "C19H21NO4",
+    molecularWeight: "327.4",
+    smiles: "CN1CCC23C4=C(C=C(C2=CC5=C3C1CC6=C5O/C(=C\\6)/O)OC)O",
+    iupacName: "(6aS)-1,10-dimethoxy-6-methyl-5,6,6a,7-tetrahydro-4H-dibenzo[de,g]quinoline-2,9-diol",
+    xLogP: "2.1",
+    noael: "40",
+    ld50: "450 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H302: Harmful if swallowed", "H315: Causes skin irritation", "H319: Causes serious eye irritation"],
+    toxicitySummary: "Boldine is an alkaloid antioxidant found in boldu leaves. It is generally low in toxicity but excessive amounts can have neurological or hepatotoxic properties. Safe for minor skin treatments.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/72474"
+  },
+  "boldo": {
+    cid: 72474,
+    name: "Boldine",
+    formula: "C19H21NO4",
+    molecularWeight: "327.4",
+    smiles: "CN1CCC23C4=C(C=C(C2=CC5=C3C1CC6=C5O/C(=C\\6)/O)OC)O",
+    iupacName: "(6aS)-1,10-dimethoxy-6-methyl-5,6,6a,7-tetrahydro-4H-dibenzo[de,g]quinoline-2,9-diol",
+    xLogP: "2.1",
+    noael: "40",
+    ld50: "450 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H302: Harmful if swallowed", "H315: Causes skin irritation", "H319: Causes serious eye irritation"],
+    toxicitySummary: "Boldine is an alkaloid antioxidant found in boldu leaves. It is generally low in toxicity but excessive amounts can have neurological or hepatotoxic properties. Safe for minor skin treatments.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/72474"
+  }
+};
+
+/**
+ * Feeds compound name to PubChem PUG REST API to get structure,
+ * and uses Gemini Search Grounding to extract complex toxicological limits (NOAEL, LD50, etc.).
+ */
 export const getPubChemCompoundData = async (compoundName: string): Promise<PubChemCompoundData | null> => {
   if (!compoundName || !compoundName.trim()) return null;
 
-  const query = compoundName.trim();
+  const rawQuery = compoundName.trim();
+  const normalizedQuery = normalizeCompoundName(rawQuery);
+
+  // 1. Check Session/Memory Cache first for sub-ms matching
+  if (pubChemMemoryCache[normalizedQuery]) {
+    console.log(`[FAST-CACHE] Resolved "${rawQuery}" instantly from session memory cache.`);
+    return pubChemMemoryCache[normalizedQuery];
+  }
+
+  // 2. Check the comprehensive precompiled database first
+  // We can try to match the exact string or look if any key is a substring or word of the normalized query
+  let foundPrecompiled: PubChemCompoundData | null = null;
+  
+  if (PRECOMPILED_METABOLITES[normalizedQuery]) {
+    foundPrecompiled = PRECOMPILED_METABOLITES[normalizedQuery];
+  } else {
+    // Try to find a partial match (e.g., if user typed "Menthol (Natural)" or "Mentol / Menthol")
+    const matchedKey = Object.keys(PRECOMPILED_METABOLITES).find(
+      key => normalizedQuery.includes(key) || key.includes(normalizedQuery)
+    );
+    if (matchedKey) {
+      foundPrecompiled = PRECOMPILED_METABOLITES[matchedKey];
+    }
+  }
+
+  if (foundPrecompiled) {
+    console.log(`[FAST-PRECOMPILED] Resolved "${rawQuery}" instantly from off-line database.`);
+    // Save to runtime cache and return
+    pubChemMemoryCache[normalizedQuery] = foundPrecompiled;
+    return foundPrecompiled;
+  }
+
+  const query = rawQuery;
   
   // Spanish-to-English translation mapping for chemical/metabolite common trivial names
   const COMPOUND_TRANSLATIONS: Record<string, string> = {
@@ -1893,7 +2546,7 @@ export const getPubChemCompoundData = async (compoundName: string): Promise<PubC
   let resolvedEnglishName = query;
   const lowerQuery = query.toLowerCase().trim();
   
-  // 1. Check local quick translation dictionary
+  // Check local quick translation dictionary
   if (COMPOUND_TRANSLATIONS[lowerQuery]) {
     resolvedEnglishName = COMPOUND_TRANSLATIONS[lowerQuery];
   } else {
@@ -1902,7 +2555,7 @@ export const getPubChemCompoundData = async (compoundName: string): Promise<PubC
     if (foundKey) {
       resolvedEnglishName = COMPOUND_TRANSLATIONS[foundKey];
     } else if (ai) {
-      // 2. Query Gemini to quickly translate Spanish/trivial name to Standard English IUPAC/Scientific chemical name
+      // Query Gemini to quickly translate Spanish/trivial name to Standard English IUPAC/Scientific chemical name
       try {
         const translationPrompt = `Translate the chemical compound trivial name or common name "${query}" (which may be in Spanish, e.g. "ácido salicílico", or other trivial form) to its standard English chemical name (e.g., "Salicylic acid", "Camphor", "Menthol", "Linalool"). Return ONLY the plain text standard English name with no quotes, translation prefix, explanation, or markdown.`;
         const translationResponse = await generateContentWithFallback({
@@ -1931,7 +2584,7 @@ export const getPubChemCompoundData = async (compoundName: string): Promise<PubC
     pubchemUrl: `https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(resolvedEnglishName)}`
   };
 
-  // 3. Try to fetch from official PubChem REST API using the resolved English name
+  // Try to fetch from official PubChem REST API using the resolved English name
   try {
     const response = await fetch(
       `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(resolvedEnglishName)}/property/MolecularWeight,XLogP,CanonicalSMILES,MolecularFormula,IUPACName/JSON`
@@ -1975,9 +2628,9 @@ export const getPubChemCompoundData = async (compoundName: string): Promise<PubC
     console.error("PubChem API fetch error:", error);
   }
 
-  // 4. Query Gemini with Google Search to fetch Toxicological threshold limits (NOAEL, LD50, Dermal Absorption, GHS, etc.)
+  // Query Gemini with Google Search to fetch Toxicological threshold limits (NOAEL, LD50, Dermal Absorption, GHS, etc.)
   if (!ai) {
-    return {
+    const finalResult = {
       cid: baseData.cid || "N/D",
       name: baseData.name || query,
       formula: baseData.formula || "N/D",
@@ -1992,6 +2645,8 @@ export const getPubChemCompoundData = async (compoundName: string): Promise<PubC
       toxicitySummary: "AI capabilities are currently offline. Please run manual check.",
       pubchemUrl: baseData.pubchemUrl || ""
     };
+    pubChemMemoryCache[normalizedQuery] = finalResult;
+    return finalResult;
   }
 
   const cidStr = baseData.cid && baseData.cid !== "N/D" ? `(CID: ${baseData.cid})` : "";
@@ -2038,7 +2693,7 @@ Return JSON only.
     const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
     const toxicData = JSON.parse(cleanJson);
 
-    return {
+    const finalResult = {
       cid: baseData.cid || "N/D",
       name: baseData.name || query,
       formula: baseData.formula || "N/D",
@@ -2053,9 +2708,13 @@ Return JSON only.
       toxicitySummary: toxicData.toxicitySummary || "No detailed dossier summarized.",
       pubchemUrl: baseData.pubchemUrl || ""
     };
+
+    // Save success result in memory cache
+    pubChemMemoryCache[normalizedQuery] = finalResult;
+    return finalResult;
   } catch (err) {
     console.error("Failed to query extra PubChem / toxicity info:", err);
-    return {
+    const fallbackResult = {
       cid: baseData.cid || "N/D",
       name: baseData.name || query,
       formula: baseData.formula || "N/D",
@@ -2070,6 +2729,9 @@ Return JSON only.
       toxicitySummary: "An error occurred while researching toxicity metrics online.",
       pubchemUrl: baseData.pubchemUrl || ""
     };
+    // Cache the fallback so we don't try querying again on this failure continuously in same session
+    pubChemMemoryCache[normalizedQuery] = fallbackResult;
+    return fallbackResult;
   }
 };
 
@@ -2219,6 +2881,11 @@ export const KNOWN_COMPOUNDS_DB: KnownCompoundEntry[] = [
     name: "Cineole",
     cid: "2758",
     spanishAliases: ["cineol", "cineole", "eucalyptol", "eucaliptol", "1,8-cineol", "1,8-cineole"]
+  },
+  {
+    name: "Salicylic acid",
+    cid: "338",
+    spanishAliases: ["ácido salicílico", "acido salicilico", "salicílico", "salicilico", "ácido salicilico"]
   }
 ];
 
@@ -2370,6 +3037,9 @@ const dynamicPubChemSessionCache: Record<string, string> = {};
 export const auditAndApplyPubChemLinksAsync = async (markdown: string): Promise<string> => {
   if (!markdown) return markdown;
 
+  // First apply high-fidelity known compounds DB linking (which handles multi-word names accurately)
+  const preLinkedMarkdown = auditAndApplyPubChemLinks(markdown);
+
   // Cache object initialized with KNOWN_COMPOUNDS_DB records to skip network requests
   const resolvedCompoundsCache: Record<string, string> = { ...dynamicPubChemSessionCache };
   for (const cmp of KNOWN_COMPOUNDS_DB) {
@@ -2397,7 +3067,7 @@ export const auditAndApplyPubChemLinksAsync = async (markdown: string): Promise<
   const candidateRegex = /\b([A-Za-zÁÉÍÓÚáéíóúñ]{4,25}(?:ina|ína|ol|eno|ene|ona|one|in|ido|ído|yde|ide|ósido|osido|cid|cido))\b/gi;
 
   const placeholders: string[] = [];
-  let textWithPlaceholders = markdown.replace(/(!?\[[^\]]*\]\([^\)]+\)|https?:\/\/[^\s\)\>]+)/g, (match) => {
+  let textWithPlaceholders = preLinkedMarkdown.replace(/(!?\[[^\]]*\]\([^\)]+\)|https?:\/\/[^\s\)\>]+)/g, (match) => {
     const placeholder = `___REGULATORY_LINK_PH_${placeholders.length}___`;
     placeholders.push(match);
     return placeholder;

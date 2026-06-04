@@ -54,7 +54,8 @@ import {
   GitBranch,
   ChevronDown,
   Plus,
-  LogOut
+  LogOut,
+  ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +70,7 @@ import { PDFDownloadLink } from "@react-pdf/renderer";
 import { ScientificReport } from "./components/ScientificReport";
 import { AuroriaWorkspace } from "./components/AuroriaWorkspace";
 import { GmailAuthPortal } from "./components/GmailAuthPortal";
+import { AdminWhitelistDashboard } from "./components/AdminWhitelistDashboard";
 import { GmailUser } from "./types";
 import { auth } from "./lib/firebase";
 
@@ -102,6 +104,7 @@ export default function App() {
     return null;
   });
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
 
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -125,7 +128,7 @@ export default function App() {
       search: "Laboratorio de Investigación",
       searching: "Sincronizando con bases de datos...",
       disclaimer: "Este protocolo bio-digital se provee estrictamente con fines de investigación académica y etnofarmacológica. Toda información contenida debe ser verificada por especialistas calificados en salud y botánica médica antes de cualquier aplicación.",
-      regulatory_title: "Marco Regulatorio COFEPRIS",
+      regulatory_title: "Marco Regulatorio COFEPRIS & Internacional (SCCS/EPA)",
       download: "Exportar Certificado Técnico (PDF)",
       nav_home: "Portal",
       nav_method: "Laboratorio",
@@ -163,7 +166,7 @@ export default function App() {
       search: "Research Laboratory",
       searching: "Synchronizing with databases...",
       disclaimer: "This bio-digital protocol is provided strictly for academic and ethnopharmacological research purposes. All information must be verified by qualified health and medical botany specialists before any application.",
-      regulatory_title: "COFEPRIS Regulatory Framework",
+      regulatory_title: "COFEPRIS & International Regulatory Framework (SCCS/EPA)",
       download: "Export Technical Certificate (PDF)",
       nav_home: "Portal",
       nav_method: "Lab",
@@ -306,6 +309,21 @@ export default function App() {
               <span className="text-[10px] uppercase tracking-widest leading-none">{lang === "es" ? "English" : "Español"}</span>
             </Button>
 
+            {currentUser && (currentUser.email === "eupirne@gmail.com" || currentUser.role === "admin") && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2 rounded-xl px-4 border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-all font-extrabold flex"
+                onClick={() => {
+                  setShowAdminPanel(!showAdminPanel);
+                  setIsToolActive(false); // Back to homepage level to render the dashboard
+                }}
+              >
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span className="text-[10px] uppercase tracking-widest leading-none">{lang === "es" ? "Consola" : "Console"}</span>
+              </Button>
+            )}
+
             {/* Google Account Switcher */}
             {currentUser && (
               <div className="relative">
@@ -404,6 +422,20 @@ export default function App() {
 
                       {/* Action buttons */}
                       <div className="pt-3.5 space-y-2">
+                        {(currentUser.email === "eupirne@gmail.com" || currentUser.role === "admin") && (
+                          <button
+                            onClick={() => {
+                              setShowAdminPanel(true);
+                              setIsToolActive(false);
+                              setShowAccountSwitcher(false);
+                            }}
+                            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs font-bold transition-all cursor-pointer mb-1"
+                          >
+                            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                            <span>{lang === "es" ? "Consola Lista Blanca" : "Whitelist Console"}</span>
+                          </button>
+                        )}
+
                         <button
                           onClick={() => {
                             setCurrentUser(null);
@@ -503,6 +535,19 @@ export default function App() {
                 onAuthSuccess={(user) => {
                   setCurrentUser(user);
                 }} 
+              />
+            </motion.div>
+          ) : showAdminPanel ? (
+            <motion.div
+              key="admin-whitelist-tab"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              className="container mx-auto px-6 py-12 max-w-6xl"
+            >
+              <AdminWhitelistDashboard 
+                lang={lang} 
+                onClose={() => setShowAdminPanel(false)} 
               />
             </motion.div>
           ) : !isToolActive ? (
@@ -631,7 +676,7 @@ export default function App() {
                   >
                     {/* Layer 1: Dedicated Canvas Viewport (100% Unobstructed artwork) */}
                     <div className="relative w-full h-[10.5rem] overflow-hidden bg-slate-950 flex-shrink-0">
-                      <CofeprisHQCanvas />
+                      <CofeprisHQCanvas lang={lang} />
                       <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-60" />
                     </div>
 
@@ -710,7 +755,7 @@ export default function App() {
                         </div>
                       </div>
                       <div className="mt-6 text-center">
-                        <span className="text-[50px] font-serif tracking-tight text-accent uppercase font-bold leading-tight block">HUB CIENTÍFICO</span>
+                        <span className="text-[50px] font-serif tracking-tight text-accent uppercase font-bold leading-tight block">{lang === "es" ? "HUB CIENTÍFICO" : "SCIENTIFIC HUB"}</span>
                       </div>
                     </motion.div>
                   </div>
@@ -1109,7 +1154,15 @@ export default function App() {
                             {/* Botón de Exportar Reporte PDF integrado */}
                             {result && (
                               <PDFDownloadLink
-                                document={<ScientificReport title={search} result={result} lang={lang} />}
+                                document={
+                                  <ScientificReport 
+                                    title={search} 
+                                    result={result} 
+                                    lang={lang} 
+                                    secondaryMetabolite={search}
+                                    pubchemUrl={`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(search)}`}
+                                  />
+                                }
                                 fileName={`reporte_${search.replace(/\s+/g, '_')}.pdf`}
                               >
                                 {({ loading: pdfLoading }) => (
@@ -1229,14 +1282,14 @@ export default function App() {
                     {/* Tarjeta de Validación Bio-Digital */}
                     <div className="p-8 rounded-[2.5rem] bg-card/80 backdrop-blur-xl space-y-6 border border-primary/20 shadow-2xl">
                       <div className="flex items-center justify-between">
-                        <h4 className="micro-label text-primary">Validación Bio-Digital</h4>
+                        <h4 className="micro-label text-primary">{lang === "es" ? "Validación Bio-Digital" : "Bio-Digital Validation"}</h4>
                         <Badge variant="outline" className="text-[8px] border-primary/20 opacity-50">v3.0.0</Badge>
                       </div>
                       <div className="space-y-6">
                         {[
-                          { label: 'Confianza', val: '98.4%', color: 'bg-primary' },
-                          { label: 'Citas', val: 'Detectadas', color: 'bg-accent' },
-                          { label: 'Validación', val: 'Criptográfica', color: 'bg-green-400' },
+                          { label: lang === "es" ? 'Confianza' : 'Confidence', val: '98.4%', color: 'bg-primary' },
+                          { label: lang === "es" ? 'Citas' : 'Citations', val: lang === "es" ? 'Detectadas' : 'Detected', color: 'bg-accent' },
+                          { label: lang === "es" ? 'Validación' : 'Validation', val: lang === "es" ? 'Criptográfica' : 'Cryptographic', color: 'bg-green-400' },
                         ].map((spec, i) => (
                           <div key={i} className="flex justify-between items-center text-sm border-b border-primary/10 pb-4 last:border-0 last:pb-0">
                             <span className="font-bold text-muted-foreground uppercase text-[10px] tracking-widest">{spec.label}</span>
@@ -1249,7 +1302,12 @@ export default function App() {
                       </div>
                       <div className="pt-2">
                         <p className="text-[10px] text-muted-foreground leading-relaxed italic opacity-80">
-                          <span className="text-primary font-bold">Garantía de Integridad:</span> Certificación de integridad de datos que garantiza: 1. Renderizado Adaptativo de PDF. 2. Validación de DOIs en tiempo real con Google Search. 3. Limpieza de caracteres residuales (Mojibake). 4. Formato APA 7mo riguroso.
+                          <span className="text-primary font-bold">
+                            {lang === "es" ? "Garantía de Integridad:" : "Integrity Guarantee:"}
+                          </span>{" "}
+                          {lang === "es"
+                            ? "Certificación de integridad de datos que garantiza: 1. Renderizado Adaptativo de PDF. 2. Validación de DOIs en tiempo real con Google Search. 3. Limpieza de caracteres residuales (Mojibake). 4. Formato APA 7mo riguroso."
+                            : "Data integrity certification guaranteeing: 1. Adaptive PDF rendering. 2. Real-time DOI validation with Google Search. 3. Cleansing of residual characters (Mojibake). 4. Rigorous APA 7th format."}
                         </p>
                       </div>
                     </div>
@@ -1257,7 +1315,7 @@ export default function App() {
                     <div className="p-8 rounded-[2.5rem] bg-slate-900/60 backdrop-blur-xl border border-accent/30 space-y-4 shadow-2xl">
                       <div className="flex items-center gap-3 text-accent mb-4">
                         <AlertCircle className="w-5 h-5" />
-                        <h4 className="micro-label !text-accent">Aviso Investigativo & Legal</h4>
+                        <h4 className="micro-label !text-accent">{lang === "es" ? "Aviso Investigativo & Legal" : "Investigative & Legal Disclaimer"}</h4>
                       </div>
                       <p className="text-[11px] text-accent/90 leading-relaxed font-bold italic">{t[lang].disclaimer}</p>
                     </div>
@@ -1272,13 +1330,57 @@ export default function App() {
                           className="flex items-center justify-between group p-4 rounded-2xl bg-primary/5 hover:bg-primary/10 transition-all border border-primary/10 hover:border-primary/30"
                         >
                           <div className="flex flex-col gap-1">
-                            <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Guía Herbolaría</span>
-                            <span className="text-[9px] text-muted-foreground uppercase">Reglamentación Vigente México</span>
+                            <span className="text-[10px] font-bold text-primary uppercase tracking-widest">{lang === "es" ? "Prácticas Sanitarias DOF" : "DOF Sanitary Practices"}</span>
+                            <span className="text-[9px] text-muted-foreground uppercase">{lang === "es" ? "Reglamentación Federal México" : "Federal Mexican Regulation"}</span>
                           </div>
                           <ExternalLink className="w-4 h-4 text-primary" />
                         </a>
                         <p className="text-[9px] text-muted-foreground/60 leading-tight italic">
-                          Consulta los reglamentos de control sanitario aplicables a plantas medicinales y remedios herbolarios.
+                          {lang === "es"
+                            ? "Consulta los reglamentos de control sanitario aplicables a plantas medicinales y remedios herbolarios."
+                            : "Consult sanitary control regulations applicable to medicinal plants and herbal remedies."}
+                        </p>
+
+                        <div className="border-t border-primary/10 my-4 pt-4"></div>
+
+                        {/* European Commission SCCS Guidelines */}
+                        <a 
+                          href="https://health.ec.europa.eu/scientific-committees/scientific-committee-consumer-safety-sccs_en" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between group p-4 rounded-2xl bg-primary/5 hover:bg-primary/10 transition-all border border-primary/10 hover:border-primary/30"
+                        >
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold text-primary uppercase tracking-widest">{lang === "es" ? "Lineamientos SCCS Unión Europea" : "EU SCCS Guidelines"}</span>
+                            <span className="text-[9px] text-muted-foreground uppercase">{lang === "es" ? "Comité Científico de Seguridad del Consumidor" : "Scientific Committee on Consumer Safety"}</span>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-primary" />
+                        </a>
+                        <p className="text-[9px] text-muted-foreground/60 leading-tight italic">
+                          {lang === "es"
+                            ? "Notas de orientación de la SCCS para la evaluación de seguridad de sustancias e ingredientes cosméticos según el reglamento de la UE (EC 1223/2009)."
+                            : "SCCS guidance notes for testing and safety evaluation of cosmetic ingredients under EU Regulation (EC 1223/2009)."}
+                        </p>
+
+                        <div className="border-t border-primary/10 my-4 pt-4"></div>
+
+                        {/* US EPA IRIS */}
+                        <a 
+                          href="https://www.epa.gov/iris" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between group p-4 rounded-2xl bg-primary/5 hover:bg-primary/10 transition-all border border-primary/10 hover:border-primary/30"
+                        >
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold text-primary uppercase tracking-widest">{lang === "es" ? "Sistema Integrado IRIS US EPA" : "US EPA IRIS System"}</span>
+                            <span className="text-[9px] text-muted-foreground uppercase">{lang === "es" ? "Base de Datos de Riesgos Químicos" : "Chemical Hazard Risk Database"}</span>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-primary" />
+                        </a>
+                        <p className="text-[9px] text-muted-foreground/60 leading-tight italic">
+                          {lang === "es"
+                            ? "Compilación científica de la Agencia de Protección Ambiental de EE.UU. sobre RfDs, RfCs y factores de pendiente de toxicidad crónica."
+                            : "U.S. Environmental Protection Agency's science database compiling chronic oral reference doses (RfD), reference concentrations (RfC), and cancer slope factors."}
                         </p>
                       </div>
                     </div>
@@ -1309,8 +1411,8 @@ export default function App() {
             Bio-Engineered Web Design • Scientific Validation • APA Research Integration.
           </p>
           <div className="flex items-center gap-6">
-            <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground cursor-help hover:text-primary transition-colors">Protección de Datos</span>
-            <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground cursor-help hover:text-primary transition-colors">API Status</span>
+            <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground cursor-help hover:text-primary transition-colors">{lang === "es" ? "Protección de Datos" : "Data Protection"}</span>
+            <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground cursor-help hover:text-primary transition-colors">{lang === "es" ? "Estado de API" : "API Status"}</span>
           </div>
         </div>
       </footer>

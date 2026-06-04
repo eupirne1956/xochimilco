@@ -37,12 +37,44 @@
         }
       },
       "required": ["id", "email", "firstName", "lastName", "username", "avatarColor", "createdAt"]
+    },
+    "AuthorizedUser": {
+      "title": "AuthorizedUser",
+      "description": "Whitelist record governing user access and expiry dates.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User Google account email."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "user"],
+          "description": "The system role level defining administrative or simple user permissions."
+        },
+        "access_granted_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp indicating when access was initially granted."
+        },
+        "access_expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp indicating when access rights expire."
+        }
+      },
+      "required": ["email", "role", "access_granted_at", "access_expires_at"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
       "description": "User profiles database matching registered Firebase Authentication accounts."
+    },
+    "/authorized_users/{userEmail}": {
+      "schema": "AuthorizedUser",
+      "description": "Table for registered and prospective emails authorized to login under specific temporal conditions."
     }
   }
 }

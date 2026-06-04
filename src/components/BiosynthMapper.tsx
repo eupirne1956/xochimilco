@@ -728,6 +728,8 @@ The chemotaxonomic profile demonstrates a ${yieldRate}% yield, representing a ${
                             title={lang === "es" ? `Informe de Biosíntesis: ${selectedRoute.nombre_ruta}` : `Biosynthesis Report: ${selectedRoute.nombre_ruta_en}`} 
                             result={generateReportMarkdown()} 
                             lang={lang} 
+                            secondaryMetabolite={lang === "es" ? selectedRoute.ejemplo_producto_final.split(",")[0].trim() : selectedRoute.ejemplo_producto_final_en.split(",")[0].trim()}
+                            pubchemUrl={`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(lang === "es" ? selectedRoute.ejemplo_producto_final.split(",")[0].trim() : selectedRoute.ejemplo_producto_final_en.split(",")[0].trim())}`}
                           />
                         }
                         fileName={

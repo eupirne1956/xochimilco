@@ -9,7 +9,7 @@ import React, { useEffect, useRef } from "react";
  * - Polished dark stone monument with the "COFEPRIS" logo etched elegantly.
  * - Dynamic light effects & sunset dust particles.
  */
-export const CofeprisHQCanvas: React.FC = () => {
+export const CofeprisHQCanvas: React.FC<{ lang?: "es" | "en" }> = ({ lang = "es" }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -237,7 +237,7 @@ export const CofeprisHQCanvas: React.FC = () => {
       ctx.shadowBlur = 0;
       ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
       ctx.font = "900 5.5px monospace";
-      ctx.fillText("NUCLEO DE INOCUIDAD", monX + monW * 0.15, monY + monH * 0.74);
+      ctx.fillText(lang === "es" ? "NUCLEO DE INOCUIDAD" : "SAFETY COMPLIANCE CORE", monX + monW * 0.15, monY + monH * 0.74);
       
       ctx.restore();
 
@@ -346,7 +346,7 @@ export const CofeprisHQCanvas: React.FC = () => {
       cancelAnimationFrame(animationId);
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [lang]);
 
   return (
     <canvas
