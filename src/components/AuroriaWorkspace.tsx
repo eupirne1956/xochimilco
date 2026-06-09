@@ -35,6 +35,91 @@ import { MosSpectrumChart } from "./MosSpectrumChart";
 import { PhytoReactorEngine } from "./PhytoReactorEngine";
 import { generateAuroriaReport, searchBotanicalDatabase, resolveScientificName, getPubChemCompoundData, auditAndApplyPubChemLinks, auditAndApplyPubChemLinksAsync, type PubChemCompoundData } from "../services/gemini";
 
+const BotanicalMotor = ({ active, className = "w-7 h-7" }: { active: boolean; className?: string }) => {
+  return (
+    <div className={`relative ${className} flex items-center justify-center`}>
+      {/* Golden mechanical gear body (spins when active) */}
+      <motion.svg
+        viewBox="0 0 100 100"
+        className="w-full h-full text-amber-400 drop-shadow-[0_2px_8px_rgba(234,179,8,0.3)]"
+        animate={active ? { rotate: 360 } : { rotate: [0, 360] }}
+        transition={active ? { repeat: Infinity, duration: 3, ease: "linear" } : { repeat: Infinity, duration: 25, ease: "linear" }}
+      >
+        {/* Outer classic gear teeth */}
+        <g fill="currentColor">
+          <rect x="42" y="5" width="16" height="20" rx="4" />
+          <rect x="42" y="75" width="16" height="20" rx="4" />
+          <rect x="5" y="42" width="20" height="16" rx="4" />
+          <rect x="75" y="42" width="20" height="16" rx="4" />
+          
+          <rect x="42" y="5" width="16" height="20" rx="4" transform="rotate(30, 50, 50)" />
+          <rect x="42" y="5" width="16" height="20" rx="4" transform="rotate(60, 50, 50)" />
+          <rect x="42" y="5" width="16" height="20" rx="4" transform="rotate(120, 50, 50)" />
+          <rect x="42" y="5" width="16" height="20" rx="4" transform="rotate(150, 50, 50)" />
+        </g>
+        
+        {/* Inner solid ring */}
+        <circle cx="50" cy="50" r="30" className="fill-emerald-500 stroke-amber-300 stroke-[5]" />
+        
+        {/* Center hub */}
+        <circle cx="50" cy="50" r="10" className="fill-indigo-600" />
+      </motion.svg>
+
+      {/* Floating flower elements in front that spin in opposite direction or pulse */}
+      <motion.svg
+        viewBox="0 0 100 100"
+        className="absolute inset-0 w-full h-full drop-shadow-[0_2px_8px_rgba(244,63,94,0.4)]"
+        animate={active ? { rotate: -360 } : { rotate: [0, -360] }}
+        transition={active ? { repeat: Infinity, duration: 4, ease: "linear" } : { repeat: Infinity, duration: 30, ease: "linear" }}
+      >
+        {/* Cute Colorful Flower Petals */}
+        <g className="fill-rose-400 opacity-95">
+          {/* Top Petal */}
+          <ellipse cx="50" cy="30" rx="12" ry="16" />
+          {/* Bottom Petal */}
+          <ellipse cx="50" cy="70" rx="12" ry="16" />
+          {/* Left Petal */}
+          <ellipse cx="30" cy="50" rx="16" ry="12" />
+          {/* Right Petal */}
+          <ellipse cx="70" cy="50" rx="16" ry="12" />
+          
+          {/* Diagonals */}
+          <g transform="rotate(45, 50, 50)" className="fill-pink-500">
+            <ellipse cx="50" cy="30" rx="10" ry="14" />
+            <ellipse cx="50" cy="70" rx="10" ry="14" />
+            <ellipse cx="30" cy="50" rx="14" ry="10" />
+            <ellipse cx="70" cy="50" rx="14" ry="10" />
+          </g>
+        </g>
+        
+        {/* Flower Center bud */}
+        <circle cx="50" cy="50" r="8" className="fill-yellow-300 stroke-white stroke-2" />
+      </motion.svg>
+      
+      {/* Sparkles / Bio-particles */}
+      {active && (
+        <>
+          <motion.div
+            className="absolute w-1.5 h-1.5 bg-cyan-300 rounded-full blur-[0.5px]"
+            animate={{ scale: [1, 2, 1], x: [0, 18, -6], y: [0, -22, -12], opacity: [0, 1, 0] }}
+            transition={{ repeat: Infinity, duration: 1.2, delay: 0 }}
+          />
+          <motion.div
+            className="absolute w-2 h-2 bg-emerald-300 rounded-full blur-[0.5px]"
+            animate={{ scale: [1, 2.2, 1], x: [0, -18, 6], y: [0, 22, 12], opacity: [0, 1, 0] }}
+            transition={{ repeat: Infinity, duration: 1.4, delay: 0.4 }}
+          />
+          <motion.div
+            className="absolute w-1 h-1 bg-yellow-300 rounded-full blur-[0.5px]"
+            animate={{ scale: [1, 2, 1], x: [0, 12, 22], y: [0, 6, -18], opacity: [0, 1, 0] }}
+            transition={{ repeat: Infinity, duration: 1.0, delay: 0.8 }}
+          />
+        </>
+      )}
+    </div>
+  );
+};
+
 const cleanMarkdownHttps = (md: string | null | undefined): string => {
   if (!md) return "";
   return md.replace(/(!?\[[^\]]*\]\([^\)]+\))|(https?:\/\/\S+)/g, (match, link) => {
@@ -722,7 +807,7 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
     for (let i = 0; i < steps.length; i++) {
       setConsoleStatus(prev => [...prev, `[SYSTEM LOG - ${new Date().toLocaleTimeString()}]: ${steps[i]}`]);
       setCurrentStep(i);
-      await new Promise(resolve => setTimeout(resolve, i === 0 || i === 3 || i === 6 ? 900 : 400));
+      await new Promise(resolve => setTimeout(resolve, i === 0 || i === 3 || i === 6 ? 150 : 80));
     }
 
     try {
@@ -1923,9 +2008,9 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
                   size="lg"
                   disabled={loading}
                   onClick={() => startAnalysis()}
-                  className="w-full h-14 text-sm font-extrabold rounded-2xl bg-gradient-to-r from-primary via-indigo-600 to-indigo-700 shadow-xl shadow-primary/10 select-none text-white flex items-center justify-center gap-2 cursor-pointer border border-primary/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
+                  className="w-full h-14 text-sm font-extrabold rounded-2xl bg-gradient-to-r from-primary via-indigo-600 to-indigo-700 shadow-xl shadow-primary/10 select-none text-white flex items-center justify-center gap-3 cursor-pointer border border-primary/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
                 >
-                  <Activity className="w-4.5 h-4.5 text-white animate-pulse" />
+                  <BotanicalMotor active={loading} className="w-8 h-8 shrink-0" />
                   {loading ? (
                     lang === "es" ? "Ejecutando Modelos y Simulaciones..." : "Running Models & Simulations..."
                   ) : (

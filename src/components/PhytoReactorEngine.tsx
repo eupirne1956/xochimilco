@@ -48,14 +48,14 @@ export function PhytoReactorEngine({ lang, activeRoute, metaboliteName }: PhytoR
     // Progress steps
     const stepInterval = setInterval(() => {
       setCurrentStep((prev) => (prev + 1) % activeSteps.length);
-    }, 1800);
+    }, 600);
 
     // Minor telemetry fluctuation
     const telemetryInterval = setInterval(() => {
       setRpm(() => Math.floor(180 + Math.random() * 45));
       setTemp((prev) => +(prev + (Math.random() - 0.5) * 0.4).toFixed(1));
       setSec((prev) => prev + 1);
-    }, 900);
+    }, 300);
 
     return () => {
       clearInterval(stepInterval);

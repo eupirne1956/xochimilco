@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 @import "tw-animate-css";
@@ -8,6 +8,7 @@
 
 @theme inline {
     --font-heading: 'Playfair Display', serif;
+    --font-space: 'Space Grotesk', sans-serif;
     --font-sans: 'Inter', sans-serif;
     --font-serif: 'Playfair Display', serif;
     

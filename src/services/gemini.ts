@@ -37,13 +37,17 @@ async function generateContentWithFallback(params: {
         };
         return await ai.models.generateContent(fallbackParams);
       } catch (fallbackError: any) {
-        console.error(`[GEMINI FALLBACK] Fallback to gemini-3.5-flash was unsuccessful:`, fallbackError);
+        console.warn(`[GEMINI FALLBACK] Fallback to gemini-3.5-flash was unsuccessful:`, fallbackError);
         throw decorateWithFriendlyQuotaError(fallbackError);
       }
     }
 
-    // If it is not a quota error or if we couldn't fall back, log the original error now and throw
-    console.error(`Gemini call failed with model ${originalModel}:`, error);
+    // If we couldn't fall back, log the error (use warn if quota error, error otherwise) and throw
+    if (isQuotaError) {
+      console.warn(`Gemini call failed with model ${originalModel} due to quota limit:`, error);
+    } else {
+      console.error(`Gemini call failed with model ${originalModel}:`, error);
+    }
 
     if (isQuotaError) {
       throw decorateWithFriendlyQuotaError(error);
@@ -52,6 +56,62 @@ async function generateContentWithFallback(params: {
     throw error;
   }
 }
+
+/**
+ * Nettoie et unifie la notation LaTeX indésirable ainsi que les composés absents.
+ * Clean and unify LaTeX, dollar notation, and completely eliminate absent ("not present") compounds.
+ */
+export const cleanLaTexAndNotPresent = (text: string): string => {
+  if (!text) return text;
+  
+  // 1. Line-by-line filtering of "not present / no presente"
+  const lines = text.split('\n');
+  const filteredLines = lines.filter(line => {
+    const lower = line.toLowerCase();
+    const isAbsentKeyword = lower.includes("not present in") || 
+                            lower.includes("no presente en") || 
+                            lower.includes("not present") || 
+                            lower.includes("no presente");
+                            
+    if (isAbsentKeyword) {
+      const isListItemOrRow = line.trim().startsWith('-') || 
+                              line.trim().startsWith('*') || 
+                              line.trim().startsWith('|') || 
+                              /^\d+\./.test(line.trim());
+      // If it is a list item or a table row, or a short line describing absence, discard the entire line/row
+      if (isListItemOrRow || line.length < 250) {
+        return false;
+      }
+    }
+    return true;
+  });
+  
+  let cleaned = filteredLines.join('\n');
+  
+  // 2. Uniform formatting for LaTeX and mathematical symbols (replacing raw LaTeX notation with standard text equivalents)
+  cleaned = cleaned.replace(/\\circ\\text\{C\}/g, "°C");
+  cleaned = cleaned.replace(/\\circ\s*\\text\{C\}/g, "°C");
+  cleaned = cleaned.replace(/\\circ/g, "°");
+  cleaned = cleaned.replace(/\^\\circ/g, "°");
+  cleaned = cleaned.replace(/\^°/g, "°");
+  cleaned = cleaned.replace(/\\pm/g, "±");
+  cleaned = cleaned.replace(/\\text\s*RH/gi, "RH");
+  cleaned = cleaned.replace(/\\text\{([^{}]+)\}/g, "$1");
+  cleaned = cleaned.replace(/\\%/g, "%");
+  cleaned = cleaned.replace(/\\quad/g, " ");
+  cleaned = cleaned.replace(/\\;/g, " ");
+  
+  // Clean surrounding $ around plain text numbers, temperatures, or humidity percentages
+  cleaned = cleaned.replace(/\$([^$]+)\$/g, (match, inner) => {
+    // If it contains advanced equation structures like \frac, \times, SED =, ADI =, or MoS =, preserve dollars
+    if (inner.includes("\\frac") || inner.includes("\\times") || inner.includes("SED =") || inner.includes("MoS =") || inner.includes("EDI =")) {
+      return match;
+    }
+    return inner;
+  });
+
+  return cleaned;
+};
 
 function decorateWithFriendlyQuotaError(originalError: any): Error {
   const customMessage = 
@@ -427,7 +487,7 @@ function getOfflinePlantsByCompoundReport(compound: string, language: 'en' | 'es
     return `## 1. Introducción y Caracterización del Compuesto
 El compuesto **${compound}** representa un metabolito secundario con un perfil farmacológico distinguido. Ejerce interacciones selectivas ligando-receptor regulando cascadas celulares específicas (como la respuesta antiinflamatoria o modulación de receptores térmicos cutáneos). Su biodisponibilidad y solubilidad dependen críticamente del método de preparación (ej. decocción acuosa modera la liberación de glucósidos, mientras maceración alcohólica eficientiza terpenos).
 
-## 2. Lista de Especímenes y Tagging Biogeográfico
+## 2. Lista de Algunos Especímenes Botánicos Portadores y Tagging Biogeográfico
 A continuación se detallan los especímenes botánicos clave identificados con abundancias considerables de este metabolito:
 1. **Mentha piperita** (Menta)
    - **Familia:** Lamiaceae | **Estatus:** Introducida/Cosmopolita.
@@ -572,7 +632,7 @@ Usa exactamente estos CIDs, URLs de PubChem y cadenas SMILES para los siguientes
 * Cafeína (Caffeine) -> URL: https://pubchem.ncbi.nlm.nih.gov/compound/2519 | SMILES: CN1C=NC2=C1C(=O)N(C(=O)N2C)C | CID: 2519
 * Mentol (Menthol) -> URL: https://pubchem.ncbi.nlm.nih.gov/compound/1254 | SMILES: CC1CCC(C(C1)O)C(C)C | CID: 1254
 * Curcumina (Curcumin) -> URL: https://pubchem.ncbi.nlm.nih.gov/compound/969516 | SMILES: COC1=C(C=CC(=C1)/C=C/C(=O)CC(=O)/C=C/C2=CC(=C(C=C2)O)OC)O | CID: 969516
-* Capsaicina (Capsaicin) -> URL: https://pubchem.ncbi.nlm.nih.gov/compound/1548887 | SMILES: CC(C)/C=C/CCCCC(=O)NCC1=CC(=C(C=C1)O)OC | CID: 1548887
+* Capsaicina (Capsaicin) -> URL: https://pubchem.ncbi.nlm.nih.gov/compound/1548943 | SMILES: CC(C)/C=C/CCCCC(=O)NCC1=CC(=C(C=C1)O)OC | CID: 1548943
 * Boldina (Boldine) -> URL: https://pubchem.ncbi.nlm.nih.gov/compound/10154 | SMILES: CN1CCc2c3c(ccc2O)C(C1)Cc4ccc(O)c(OC)c43 | CID: 10154
 
 Para cualquier otro metabolito fitoquímico, DEBES corroborar en tiempo real con Google Search su CID y estructura SMILES canónica. Si no tienes certeza absoluta de un compuesto no listado arriba, escribe "NA" en lugar de adivinar o inventar.
@@ -597,6 +657,8 @@ REGLAS DE FORMATO:
 - Tono: Altamente técnico, objetivo y profesional.
 - Idioma: Español o Inglés según se solicite, respetando nomenclatura en Latín.
 - Enlaces funcionales obligatorios en la Bibliografía.
+- PROHIBICIÓN ABSOLUTA DE LATEX / NOTACIÓN CON SÍMBOLO DE DÓLAR ($): Queda terminantemente penalizado y PROHIBIDO utilizar fórmulas matemáticas o formatos de texto entre signos de dólar ($) o marcas tipo LaTeX en el reporte (ej. no uses $40^\circ\text{C} \pm 2^\circ\text{C}$ / $75% \pm 5%\text{ RH}$, no uses $C_6H_{14}O_6$ ni bloques LaTeX). Todo texto o número debe ser formateado de manera uniforme y limpia en texto plano (ej. "40°C ± 2°C / 75% ± 5% RH" o "C6H14O6").
+- ELIMINACIÓN DE COMPUESTOS NO PRESENTES: Está ESTRICTAMENTE PROHIBIDO incluir o listar compuestos, metabolitos, impurezas o marcadores que NO estén presentes o se reporten ausentes con leyendas como "not present", "no presente", "ND", "not present in [plant]" o similares. Si un compuesto no está presente o no se detecta en la planta en estudio, elimínalo totalmente del reporte para evitar redundancias aberrantes, tanto en la versión en español como en inglés.
 
 ESTRUCTURA DEL REPORTE:
 # Nombre Científico del Especímen
@@ -651,10 +713,10 @@ export const generateResearch = async (query: string, language: 'en' | 'es') => 
       }
     });
 
-    return response.text;
+    return cleanLaTexAndNotPresent(response.text);
   } catch (error) {
     console.warn("[RESEARCH FALLBACK] API call failed on fallback, compiling offline report for:", query, error);
-    return getOfflineResearchReport(query, language);
+    return cleanLaTexAndNotPresent(getOfflineResearchReport(query, language));
   }
 };
 
@@ -665,12 +727,21 @@ export const identifyPlantsByCompound = async (compound: string, language: 'en' 
 
   const prompt = `
     ACTÚA COMO UN EXPERTO EN FITOQUÍMICA Y BOTÁNICA MÉDICA (MESOAMERICAN ETHNOBOTANY AND PHYTOCHEMISTRY).
-    OBJETIVO: Identificar especímenes vegetales que posean la huella fitoquímica del compuesto: "${compound}".
+    
+    REGLA DE CENTRADO EN LA SUSTANCIA QUÍMICA (MANDATORIA Y CRÍTICA):
+    La información que debes de presentar en este informe es ÚNICAMENTE de la sustancia química / fitocompuesto. Toda la respuesta, narrativa y secciones deben de basarse o centrarse exclusivamente en el fitoquímico solicitado ("${compound}").
+    
+    - SI EL TÉRMINO DE BÚSQUEDA ("${compound}") ES UNA PLANTA O ESPECÍMEN BOTÁNICO:
+      Identifica de manera inmediata su fitocompuesto activo principal o marcador fitoquímico más destacado de rigor científico (por ejemplo: si es "Tepezcohuite" -> centrar en "Taninos fitoactivos" o "Dimetiltriptamina"; si es "Manzanilla" -> centrar en "Chamazuleno" o "Apigenina"; si es "Boldo" -> centrar en "Boldina"; si es "Romero" -> centrar en "Ácido Rosmarínico" o "Carnosol"; si es "Café" -> centrar en "Cafeína", etc.). Una vez identificado el fitocompuesto, RE-DIRECCIONA todo el informe para que el fitoquímico puro sea el actor y centro absoluto del informe.
+      
+    - NO USES UNA PLANTA COMO BASE O PROTAGONISTA DE LA RESPUESTA:
+      No estructures el reporte alrededor de una planta. El título, la introducción y los enfoques deben ser sobre la sustancia o compuesto fitoquímico.
+      Puedes asociar las especies vegetales que la contengan (las cuales enumerarás de forma subordinada en la Sección 2), pero manteniendo enteramente la perspectiva de que dichas plantas son simples fuentes biológicas portadoras de la sustancia en cuestión, nunca el sujeto principal.
  
     REQUISITOS DE CONTENIDO ADICIONALES:
-    - Biogeographic and Historical Tagging: Para cada uno de los especímenes identificados, clasifica obligatoriamente si es "Nativa Mesoamericana" (Native Mesoamerican) o "Introducida/Cosmopolita" (Introduced/Cosmopolitan). Relaciona especies nativas con fuentes históricas (p. ej., Códice Badiano, Códice Florentino). Para introducidas, explica su sincretismo etnobotánico.
-    - Dual Medical Ontology: Traduce usos o síndromes tradicionales (ej. empacho, susto) a fisiopatología médica moderna (ej. hipomotilidad gástrica, hiperactividad simpática). Describe el método tradicional de preparación (decocción, cataplasma, maceración) y su impacto en la biodisponibilidad y solubilidad.
-    - Extraction Artifact Differentiation: Explica si el compuesto analizado "${compound}" o los metabolitos secundarios reportados son puramente endógenos o si pueden actuar como artefactos de extracción catalizados por procesos térmicos o destilaciones.
+    - Biogeographic and Historical Tagging: Para cada uno de los especímenes identificados en la sección 2 como portadores, clasifica obligatoriamente si es "Nativa Mesoamericana" (Native Mesoamerican) o "Introducida/Cosmopolita" (Introduced/Cosmopolitan). Relaciona especies nativas con fuentes históricas (p. ej., Códice Badiano, Códice Florentino). Para introducidas, explica su sincretismo etnobotánico.
+    - Dual Medical Ontology: Traduce usos o síndromes tradicionales (ej. empacho, susto) a fisiopatología médica moderna (ej. hipomotilidad gástrica, hiperactividad simpática). Describe el método tradicional de preparación (decocción, cataplasma, maceración) y su impacto en la biodisponibilidad y solubilidad de la sustancia química estudiada.
+    - Extraction Artifact Differentiation: Explica si el compuesto analizado o los metabolitos secundarios reportados son puramente endógenos o si pueden actuar como artefactos de extracción catalizados por procesos térmicos o destilaciones.
     - Biosynthetic Traceability: Clasifica los metabolitos activos por vía biosintética (metabolitos volátiles por la vía Mevalonato/MEP y no volátiles por Ácido Shikímico).
     - Ligand-Receptor Pairing (Pharmacodynamics): Vincula de forma directa el marcador fitoquímico primario con su receptor macromolecular de diana específica o cascada inflamatoria (ej. apigenina a sitio de benzodiacepinas en GABA_A, o bisabolol a inhibición COX-2/5-LOX).
     - Regulatory Compliance and Quality Audit (COFEPRIS): Audita el extracto propuesto contra la NOM-073-SSA1-2015 y requisitos de la FHEUM (Farmacopea Herbolaria de los Estados Unidos Mexicanos). Menciona requerimientos de pruebas térmicas deliberadas, pureza microbiana y su cromatografía para trazabilidad lote a lote.
@@ -678,12 +749,12 @@ export const identifyPlantsByCompound = async (compound: string, language: 'en' 
     - MODULE 8: VISUAL INTEGRATION AND EXACT HISTORICAL MAPPING:
       1. Botanical Imagery: Es de carácter OBLIGATORIO incorporar de manera interactiva únicamente imágenes fotográficas botánicas reales macroscópicas de dominio público utilizando formato Markdown: ![Alt text](Image_URL) (ej. de Wikimedia Commons). Está ESTRICTAMENTE PROHIBIDO generar imágenes o diagramas de estructuras químicas 2D, ni referenciar imgsrv de PubChem; solo se permiten fotos morfológicas macroscópicas herbolarias de la planta real.
       2. Exact Historical Mapping: Cuando se haga referencia a textos históricos mesoamericanos o coloniales (tales como el Libellus de Medicinalibus Indorum Herbis / Manuscrito Badiano, el Códice Florentino o las obras de Francisco Hernández), queda ESTRICTAMENTE PROHIBIDO limitarse a mencionar el título de forma vaga. DEBES proporcionar detalladamente la topología exacta de la referencia, indicando de forma explícita el Folio, Lámina, Libro y Número de capítulo específicos (ej. "Manuscrito Badiano, Folio 15r", "Códice Florentino, Libro XI, Capítulo XI", o "Hernández, Plinio Mexicano, Libro I") siempre que existan históricamente.
- 
+  
     - MODULE 9: CHEMICAL HYPERLINKING AND STRUCTURAL IDENTIFIERS:
       1. Database Linking: Cuando identifiques una sustancia química específica, metabolito secundario o compuesto activo (como quercetina, apigenina, cafeína, etc.) en tu análisis, DEBES obligatoriamente enlazar su nombre con un hipervínculo que apunte directamente a su ficha de PubChem (ej. [Quercetina](https://pubchem.ncbi.nlm.nih.gov/compound/5280343) o [Apigenina](https://pubchem.ncbi.nlm.nih.gov/compound/5280443)). Sé sumamente riguroso; toda sustancia conocida con ficha existente debe ir linkeada con su URL real de compound de PubChem.
       2. SMILES Inclusion: Inmediatamente al lado del nombre del compuesto o en su bloque de información específico, proporciona obligatoriamente su cadena SMILES canónica (Simplified Molecular Input Line Entry System) para facilitar la visualización estructural y búsquedas computacionales (ej. "SMILES: C15H10O7" para quercetina).
       3. Fallback Protocol (NA): Si el URL de la base de datos o la cadena SMILES exacta de un compuesto no está disponible o no se puede verificar con confianza de rigor científico absoluto, DEBES insertar estrictamente la leyenda "NA" (Not Available) en su lugar en vez de omitir o alucinar datos.
- 
+  
     HOJA DE REFERENCIA DE SEGURIDAD (MÁXIMA RIGOROSIDAD):
     Usa exactamente estos CIDs, de PubChem y cadenas SMILES para los siguientes componentes fitoquímicos si se mencionan en tu reporte:
     * Chamazuleno (Chamazulene) -> URL: https://pubchem.ncbi.nlm.nih.gov/compound/10719 | SMILES: CCC1=CC2=C(C=CC2=C(C=C1)C)C | CID: 10719
@@ -699,7 +770,7 @@ export const identifyPlantsByCompound = async (compound: string, language: 'en' 
     * Cafeína (Caffeine) -> URL: https://pubchem.ncbi.nlm.nih.gov/compound/2519 | SMILES: CN1C=NC2=C1C(=O)N(C(=O)N2C)C | CID: 2519
     * Mentol (Menthol) -> URL: https://pubchem.ncbi.nlm.nih.gov/compound/1254 | SMILES: CC1CCC(C(C1)O)C(C)C | CID: 1254
     * Curcumina (Curcumin) -> URL: https://pubchem.ncbi.nlm.nih.gov/compound/969516 | SMILES: COC1=C(C=CC(=C1)/C=C/C(=O)CC(=O)/C=C/C2=CC(=C(C=C2)O)OC)O | CID: 969516
-    * Capsaicina (Capsaicin) -> URL: https://pubchem.ncbi.nlm.nih.gov/compound/1548887 | SMILES: CC(C)/C=C/CCCCC(=O)NCC1=CC(=C(C=C1)O)OC | CID: 1548887
+    * Capsaicina (Capsaicin) -> URL: https://pubchem.ncbi.nlm.nih.gov/compound/1548943 | SMILES: CC(C)/C=C/CCCCC(=O)NCC1=CC(=C(C=C1)O)OC | CID: 1548943
     * Boldina (Boldine) -> URL: https://pubchem.ncbi.nlm.nih.gov/compound/10154 | SMILES: CN1CCc2c3c(ccc2O)C(C1)Cc4ccc(O)c(OC)c43 | CID: 10154
  
     Para cualquier otro compuesto no listado que no se pueda verificar al 100% con Google Search en tiempo real, se DEBE usar estrictamente "NA" para el enlace y para el SMILES. No inventes estructuras ni enlaces. Está estrictamente prohibido el renderizado de cualquier imagen de estructura química o enlace a imgsrv de PubChem; solo se permiten imágenes macroscópicas botánicas reales.
@@ -720,23 +791,23 @@ export const identifyPlantsByCompound = async (compound: string, language: 'en' 
       - [3] Poynton, E. F., et al. (2024). The Natural Products Atlas 3.0: extending the database of microbially derived natural products. Nucleic Acids Research, gkae1093. DOI: 10.1093/nar/gkae1093.
       - [4] Gallo, K., et al. (2023). SuperNatural 3.0-a database of natural products and natural product-based derivatives. Nucleic Acids Research, 51(D1), D654-D659. DOI: 10.1093/nar/gkac1008.
  
-    ESTRUCTURA DEL REPORTE:
-    ## 1. Introducción y Caracterización del Compuesto
-    Breve descripción del compuesto y su importancia farmacológica (Farmacodinamia y Farmacocinética básica integrada). No incluyas diagramas de estructura química.
+    ESTRUCTURA DEL REPORTE CENTRADO EN EL FITOQUÍMICO:
+    ## 1. Introducción y Caracterización de la Sustancia Química
+    Descripción científica detallada únicamente del compuesto o fitoquímico analizado (familia de metabolitos, propiedades de solubilidad, molecular weight if known, SMILES, PubChem, importancia farmacológica, etc.). Bajo ninguna circunstancia uses el nombre de una de las plantas en el encabezado 1 ni te centres en ella, céntrate en el compuesto en sí.
     
-    ## 2. Lista de Especímenes y Tagging Biogeográfico
-    Identificación detallada de al menos 5 plantas (usa formato de lista, no tablas) con su clasificación biogeográfica obligatoria, familia, concentración o parte de la planta, fotos morfológicas macroscópicas detalladas del espécimen o follaje real (con links de Wikimedia u otros recursos libres estables) y, crucialmente, referencias históricas con número de Folio, Lámina, Libro y Capítulo según corresponda.
+    ## 2. Lista de Algunos Especímenes Botánicos Portadores y Tagging Biogeográfico
+    Identificación detallada de al menos 5 plantas (usa formato de lista, no tablas) que contengan de manera natural o industrial este fitocompuesto. Detalla su clasificación biogeográfica obligatoria como "Nativa Mesoamericana" o "Introducida/Cosmopolita", familia, concentración, fotos morfológicas macroscópicas detalladas del espécimen o follaje real (con links de Wikimedia u otros recursos libres estables) y, crucialmente, referencias históricas con número de Folio, Lámina, Libro y Capítulo según corresponda. Recuerda: las plantas son mostradas aquí puramente en su rol de fuentes que contienen el fitoquímico en cuestión.
     
-    ## 3. Respaldo Científico y Ontología Dual
-    Incluye citas en formato APA 7ma Edición (Autor, Año) dentro de las descripciones de los especímenes. Detalla su preparación con respecto a la biodisponibilidad de los metabolitos, distinguiendo compuestos endógenos de artefactos, y vinculando marcadores a sus receptors macromoleculares específicos.
+    ## 3. Respaldo Científico Farmatológico y Ontología Dual de la Sustancia
+    Incluye citas en formato APA 7ma Edición (Autor, Año). Explica los métodos de extracción en relación directa con la biodisponibilidad y solubilidad del fitocompuesto, distinguiendo si la molécula es endógena del metabolismo de la planta o puede surgir como artefacto del proceso extractivo. Explica las dianas celulares, receptores específicos o ligand-receptor pairing de esta molécula específica.
     
-    ## 4. Auditoría Regulatoria NOM-073-SSA1-2015 y FHEUM
-    Menciona la compatibilidad normativa con el marco herbolario de la COFEPRIS y exigencias de estabilidad térmica.
- 
-    ## 5. Bibliografía
-    (APA 7ma Edición en formato de lista sin guiones artificiales para DOIs funcionales).
+    ## 4. Auditoría Regulatoria del Fitocompuesto NOM-073-SSA1-2015 y FHEUM
+    Menciona la compatibilidad normativa de las formulaciones terapéuticas basadas en este fitoquímico frente a requisitos vigentes de la FHEUM y la NOM-073-SSA1-2015 de la COFEPRIS (evaluando estabilidad, pureza lote a lote y cuantificación por HPLC).
+  
+    ## 5. Bibliografía e Indicadores Científicos
+    (Citas completas verídicas y oficiales en formato APA 7ma Edición, sin guiones artificiales para DOIs funcionales).
     
-    REGLA DE NOTACIÓN: Usa texto plano para fórmulas químicas (ej. H2O en lugar de $H_2O$).
+    REGLA DE NOTACIÓN: Usa texto plano para fórmulas químicas (ej. H2O en lugar de $H_2O$). No uses LaTeX ni símbolos matemáticos de formato de texto monetario ($).
  
     IDIOMA DE RESPUESTA: ${language === 'es' ? 'Español' : 'Inglés'}
     PROTOCOLO DE VERIFICACIÓN: Garantía de Integridad Científica.
@@ -754,10 +825,10 @@ export const identifyPlantsByCompound = async (compound: string, language: 'en' 
       }
     });
 
-    return response.text;
+    return cleanLaTexAndNotPresent(response.text);
   } catch (error) {
     console.warn("[COMPOUND IDENTIFICATION FALLBACK] API call failed on fallback, compiling offline list for:", compound, error);
-    return getOfflinePlantsByCompoundReport(compound, language);
+    return cleanLaTexAndNotPresent(getOfflinePlantsByCompoundReport(compound, language));
   }
 };
 
@@ -949,7 +1020,7 @@ export const generateBotanicalImage = async (term: string): Promise<BotanicalIma
       throw new Error("No image part returned in gemini-2.5-flash-image response");
 
     } catch (fallbackErr) {
-      console.error("All generative image workflows failed. Using botanical garden high-resolution database callback.", fallbackErr);
+      console.warn("All generative image workflows failed. Using botanical garden high-resolution database callback.", fallbackErr);
       return {
         url: `https://images.unsplash.com/photo-1607613009820-a29f7bb81c04?auto=format&fit=crop&q=80&w=1200`,
         credit: `Simulación Herbolaria Científica en Laboratorio (Fallo de Red en Generación de ${term})`,
@@ -1230,6 +1301,8 @@ Now, generate the comprehensive, simulated in silico phytochemical and toxicolog
 - NEVER run a final toxicological calculation on a "whole plant" as a single entity; always break it down to its secondary metabolites first.
 - Clearly state that values are estimations based on in silico predictive models and advise that laboratory validation (in vitro/in vivo) is required for final regulatory approval.
 - Use Markdown formatting (bolding, bullet points, and tables) to present the chemical and toxicological data cleanly.
+- ABSOLUTE BAN ON LATEX AND MATH CODES WITH DOLLARS ($): You are strictly forbidden from outputting LaTeX block notation or mathematical variables wrapped inside dollar signs ($) (e.g. do NOT output $40^\circ\text{C} \pm 2^\circ\text{C}$ or similar). Format all temperature, stability parameters, chemical formulas, and percentages formatted cleanly in standard unified plain text (e.g., "40°C ± 2°C / 75% ± 5% RH" or "C6H14O6").
+- REMOVE ABSENT COMPOUNDS ("NOT PRESENT in ..."): Do NOT list or include any secondary metabolites or compounds that are not present or reported as "not present" / "No presente" in the studied plant specimen (for example, if Aloin is not present in Rosemary, completely drop any table rows or list bullet points for Aloin, rather than writing "not present" or "ND"). Only list actual, present phytocompounds.
 
 ---
 
@@ -1332,6 +1405,8 @@ Ahora, genera un reporte simulado de fitoquímica y toxicología in silico que c
 - NUNCA realices un cálculo toxicológico de seguridad sobre una "planta completa" como una única entidad; siempre desglósalo en sus metabolitos secundarios principales.
 - Declara explícitamente que los resultados son estimaciones basadas en modelado predictivo in silico y advierte que se requiere validación de laboratorio (in vitro/in vivo) para aprobación regulatoria final estricta.
 - Usa formato Markdown (negrita, viñetas y tablas) para presentar la información química y toxicológica.
+- PROHIBICIÓN ABSOLUTA DE LATEX / SÍMBOLOS DE DÓLAR ($): Está terminantemente prohibido utilizar formato de fórmulas matemáticas o códigos con símbolos de dólar ($) o marcas tipo LaTeX en el texto (ej. no uses $40^\circ\text{C} \pm 2^\circ\text{C}$ o similares). Todos los parámetros de temperatura, humedad, fórmulas químicas y porcentajes deben expresarse en texto plano estándar (ej. "40°C ± 2°C / 75% ± 5% RH" o "C6H14O6").
+- ELIMINAR COMPUESTOS NO PRESENTES ("NO PRESENTE en..."): Queda estrictamente PROHIBIDO listar o incluir compuestos, metabolitos primarios o secundarios que no estén presentes o se reporten ausentes (por ejemplo, si la aloína no está presente en el romero, elimina cualquier fila de tabla o viñeta que la mencione con texto como "No presente" o "ND"). Únicamente debes listar metabolitos reales que sí se encuentran y cuantifican en la planta.
 
 ---
 
@@ -1420,10 +1495,10 @@ REQUISITOS DEL REPORTE:
       }
     });
 
-    return response.text;
+    return cleanLaTexAndNotPresent(response.text);
   } catch (error) {
     console.warn("[AURORIA REPORT FALLBACK] API call failed on fallback, compiling offline report:", error);
-    return getOfflineReport(inputs);
+    return cleanLaTexAndNotPresent(getOfflineReport(inputs));
   }
 };
 
@@ -2235,7 +2310,7 @@ const PRECOMPILED_METABOLITES: Record<string, PubChemCompoundData> = {
     pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/1548943"
   },
   "carvacrol": {
-    cid: 10350,
+    cid: 10364,
     name: "Carvacrol",
     formula: "C10H14O",
     molecularWeight: "150.22",
@@ -2247,7 +2322,7 @@ const PRECOMPILED_METABOLITES: Record<string, PubChemCompoundData> = {
     dermalAbsorption: "10.0",
     ghsHazards: ["H302: Harmful if swallowed", "H314: Causes severe skin burns and eye damage", "H317: May cause an allergic skin reaction", "H411: Toxic to aquatic life with long lasting effects"],
     toxicitySummary: "Carvacrol is a monoterpenoid phenol found in oregano. Highly antimicrobial and antioxidant. Concentrate is skin corrosive but well-diluted preparations show outstanding security profiles in dermal formulations.",
-    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/10350"
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/10364"
   },
   "pulegona": {
     cid: 442495,
@@ -2430,11 +2505,11 @@ const PRECOMPILED_METABOLITES: Record<string, PubChemCompoundData> = {
     pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/5315809"
   },
   "boldina": {
-    cid: 72474,
+    cid: 10154,
     name: "Boldine",
     formula: "C19H21NO4",
     molecularWeight: "327.4",
-    smiles: "CN1CCC23C4=C(C=C(C2=CC5=C3C1CC6=C5O/C(=C\\6)/O)OC)O",
+    smiles: "CN1CCc2c3c(ccc2O)C(C1)Cc4ccc(O)c(OC)c43",
     iupacName: "(6aS)-1,10-dimethoxy-6-methyl-5,6,6a,7-tetrahydro-4H-dibenzo[de,g]quinoline-2,9-diol",
     xLogP: "2.1",
     noael: "40",
@@ -2442,14 +2517,14 @@ const PRECOMPILED_METABOLITES: Record<string, PubChemCompoundData> = {
     dermalAbsorption: "10.0",
     ghsHazards: ["H302: Harmful if swallowed", "H315: Causes skin irritation", "H319: Causes serious eye irritation"],
     toxicitySummary: "Boldine is an alkaloid antioxidant found in boldu leaves. It is generally low in toxicity but excessive amounts can have neurological or hepatotoxic properties. Safe for minor skin treatments.",
-    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/72474"
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/10154"
   },
   "boldine": {
-    cid: 72474,
+    cid: 10154,
     name: "Boldine",
     formula: "C19H21NO4",
     molecularWeight: "327.4",
-    smiles: "CN1CCC23C4=C(C=C(C2=CC5=C3C1CC6=C5O/C(=C\\6)/O)OC)O",
+    smiles: "CN1CCc2c3c(ccc2O)C(C1)Cc4ccc(O)c(OC)c43",
     iupacName: "(6aS)-1,10-dimethoxy-6-methyl-5,6,6a,7-tetrahydro-4H-dibenzo[de,g]quinoline-2,9-diol",
     xLogP: "2.1",
     noael: "40",
@@ -2457,14 +2532,14 @@ const PRECOMPILED_METABOLITES: Record<string, PubChemCompoundData> = {
     dermalAbsorption: "10.0",
     ghsHazards: ["H302: Harmful if swallowed", "H315: Causes skin irritation", "H319: Causes serious eye irritation"],
     toxicitySummary: "Boldine is an alkaloid antioxidant found in boldu leaves. It is generally low in toxicity but excessive amounts can have neurological or hepatotoxic properties. Safe for minor skin treatments.",
-    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/72474"
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/10154"
   },
   "boldo": {
-    cid: 72474,
+    cid: 10154,
     name: "Boldine",
     formula: "C19H21NO4",
     molecularWeight: "327.4",
-    smiles: "CN1CCC23C4=C(C=C(C2=CC5=C3C1CC6=C5O/C(=C\\6)/O)OC)O",
+    smiles: "CN1CCc2c3c(ccc2O)C(C1)Cc4ccc(O)c(OC)c43",
     iupacName: "(6aS)-1,10-dimethoxy-6-methyl-5,6,6a,7-tetrahydro-4H-dibenzo[de,g]quinoline-2,9-diol",
     xLogP: "2.1",
     noael: "40",
@@ -2472,7 +2547,7 @@ const PRECOMPILED_METABOLITES: Record<string, PubChemCompoundData> = {
     dermalAbsorption: "10.0",
     ghsHazards: ["H302: Harmful if swallowed", "H315: Causes skin irritation", "H319: Causes serious eye irritation"],
     toxicitySummary: "Boldine is an alkaloid antioxidant found in boldu leaves. It is generally low in toxicity but excessive amounts can have neurological or hepatotoxic properties. Safe for minor skin treatments.",
-    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/72474"
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/10154"
   }
 };
 
@@ -2573,27 +2648,38 @@ export const getPubChemCompoundData = async (compoundName: string): Promise<PubC
     }
   }
 
+  const lowerResolved = resolvedEnglishName.toLowerCase();
+  const databaseMatch = KNOWN_COMPOUNDS_DB.find(
+    c => c.name.toLowerCase() === lowerQuery ||
+         c.name.toLowerCase() === lowerResolved ||
+         c.spanishAliases.some(alias => alias.toLowerCase() === lowerQuery || alias.toLowerCase() === lowerResolved)
+  );
+
   let baseData: Partial<PubChemCompoundData> = {
-    cid: "N/D",
-    name: resolvedEnglishName,
+    cid: databaseMatch ? databaseMatch.cid : "N/D",
+    name: databaseMatch ? databaseMatch.name : resolvedEnglishName,
     formula: "N/D",
     molecularWeight: "N/D",
     smiles: "N/D",
     iupacName: "N/D",
     xLogP: "N/D",
-    pubchemUrl: `https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(resolvedEnglishName)}`
+    pubchemUrl: databaseMatch 
+      ? `https://pubchem.ncbi.nlm.nih.gov/compound/${databaseMatch.cid}`
+      : `https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(resolvedEnglishName)}`
   };
 
-  // Try to fetch from official PubChem REST API using the resolved English name
+  // Try to fetch from official PubChem REST API using CID (if known and verified) or Name (if unknown)
   try {
-    const response = await fetch(
-      `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(resolvedEnglishName)}/property/MolecularWeight,XLogP,CanonicalSMILES,MolecularFormula,IUPACName/JSON`
-    );
+    const fetchUrl = databaseMatch
+      ? `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${databaseMatch.cid}/property/MolecularWeight,XLogP,CanonicalSMILES,MolecularFormula,IUPACName/JSON`
+      : `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(resolvedEnglishName)}/property/MolecularWeight,XLogP,CanonicalSMILES,MolecularFormula,IUPACName/JSON`;
+
+    const response = await fetch(fetchUrl);
     if (response.ok) {
       const data = await response.json();
       const prop = data?.PropertyTable?.Properties?.[0];
       if (prop) {
-        baseData.cid = prop.CID || "N/D";
+        baseData.cid = prop.CID ? String(prop.CID) : (databaseMatch ? databaseMatch.cid : "N/D");
         baseData.formula = prop.MolecularFormula || "N/D";
         baseData.molecularWeight = prop.MolecularWeight ? String(prop.MolecularWeight) : "N/D";
         baseData.smiles = prop.CanonicalSMILES || "N/D";
@@ -2603,8 +2689,8 @@ export const getPubChemCompoundData = async (compoundName: string): Promise<PubC
           ? `https://pubchem.ncbi.nlm.nih.gov/compound/${prop.CID}`
           : baseData.pubchemUrl;
       }
-    } else {
-      // Fallback: search with original query just in case
+    } else if (!databaseMatch) {
+      // Fallback: search with original query just in case (only if we didn't search with verified CID already!)
       const originalResponse = await fetch(
         `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(query)}/property/MolecularWeight,XLogP,CanonicalSMILES,MolecularFormula,IUPACName/JSON`
       );
@@ -2814,12 +2900,12 @@ export const KNOWN_COMPOUNDS_DB: KnownCompoundEntry[] = [
   },
   {
     name: "Capsaicin",
-    cid: "1548887",
+    cid: "1548943",
     spanishAliases: ["capsaicina"]
   },
   {
     name: "Rosmarinic acid",
-    cid: "5281707",
+    cid: "5315615",
     spanishAliases: ["ácido rosmarínico", "acido rosmarinico", "rosmarínico", "rosmarinico"]
   },
   {
@@ -2854,7 +2940,7 @@ export const KNOWN_COMPOUNDS_DB: KnownCompoundEntry[] = [
   },
   {
     name: "Limonene",
-    cid: "22311",
+    cid: "223111",
     spanishAliases: ["limoneno"]
   },
   {
@@ -2886,6 +2972,56 @@ export const KNOWN_COMPOUNDS_DB: KnownCompoundEntry[] = [
     name: "Salicylic acid",
     cid: "338",
     spanishAliases: ["ácido salicílico", "acido salicilico", "salicílico", "salicilico", "ácido salicilico"]
+  },
+  {
+    name: "Allantoin",
+    cid: "204",
+    spanishAliases: ["alantoína", "alantoina"]
+  },
+  {
+    name: "Citral",
+    cid: "638011",
+    spanishAliases: ["citral"]
+  },
+  {
+    name: "Citronellol",
+    cid: "8842",
+    spanishAliases: ["citronelol", "citronellol"]
+  },
+  {
+    name: "Bisabolol",
+    cid: "5315809",
+    spanishAliases: ["bisabolol", "alfa-bisabolol", "alfa bisabolol", "α-bisabolol"]
+  },
+  {
+    name: "Pulegone",
+    cid: "442495",
+    spanishAliases: ["pulegona", "pulegone"]
+  },
+  {
+    name: "Geraniol",
+    cid: "637566",
+    spanishAliases: ["geraniol"]
+  },
+  {
+    name: "Rutin",
+    cid: "5280805",
+    spanishAliases: ["rutina"]
+  },
+  {
+    name: "Arbutin",
+    cid: "440916",
+    spanishAliases: ["arbutina"]
+  },
+  {
+    name: "Hesperidin",
+    cid: "10621",
+    spanishAliases: ["hesperidina"]
+  },
+  {
+    name: "Piperine",
+    cid: "638024",
+    spanishAliases: ["piperina"]
   }
 ];
 
@@ -3007,8 +3143,8 @@ export const auditAndApplyPubChemLinks = (markdown: string): string => {
       // Escape for RegExp usage
       const escapedTerm = term.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
       
-      // Use case-insensitive word boundary matching.
-      const regexStr = `\\b(${escapedTerm})\\b`;
+      // Use case-insensitive lookbehind and lookahead word boundary matching robust to Spanish accents.
+      const regexStr = `(?<=^|[^a-zA-Z0-9áéíóúÁÉÍÓÚüÜñÑ_])(${escapedTerm})(?=$|[^a-zA-Z0-9áéíóúÁÉÍÓÚüÜñÑ_])`;
       const regex = new RegExp(regexStr, 'gi');
 
       textWithPlaceholders = textWithPlaceholders.replace(regex, (match) => {
@@ -3063,8 +3199,8 @@ export const auditAndApplyPubChemLinksAsync = async (markdown: string): Promise<
     }
   };
 
-  // 1. Spot candidate chemical names via suffix regex (4 to 25 letters long)
-  const candidateRegex = /\b([A-Za-zÁÉÍÓÚáéíóúñ]{4,25}(?:ina|ína|ol|eno|ene|ona|one|in|ido|ído|yde|ide|ósido|osido|cid|cido))\b/gi;
+  // 1. Spot candidate chemical names via suffix regex (4 to 25 letters long) robust to Spanish accents using lookbehinds
+  const candidateRegex = /(?<=^|[^a-zA-Z0-9áéíóúÁÉÍÓÚüÜñÑ_])([a-zA-ZáéíóúÁÉÍÓÚüÜñÑ]{4,25}(?:ina|ína|ol|eno|ene|ona|one|in|ido|ído|yde|ide|ósido|osido|cid|cido))(?=$|[^a-zA-Z0-9áéíóúÁÉÍÓÚüÜñÑ_])/gi;
 
   const placeholders: string[] = [];
   let textWithPlaceholders = preLinkedMarkdown.replace(/(!?\[[^\]]*\]\([^\)]+\)|https?:\/\/[^\s\)\>]+)/g, (match) => {
@@ -3084,6 +3220,11 @@ export const auditAndApplyPubChemLinksAsync = async (markdown: string): Promise<
   // Heuristics to translate Spanish terms/suffixes into standard English for PubChem name resolution
   const translateToChemicalEnglish = (word: string): string => {
     const lw = word.toLowerCase();
+    
+    const matchedKnown = KNOWN_COMPOUNDS_DB.find(
+      c => c.name.toLowerCase() === lw || c.spanishAliases.some(alias => alias.toLowerCase() === lw)
+    );
+    if (matchedKnown) return matchedKnown.name;
     
     const direct: Record<string, string> = {
       "ácido rosmarínico": "rosmarinic acid",
@@ -3137,6 +3278,18 @@ export const auditAndApplyPubChemLinksAsync = async (markdown: string): Promise<
 
   const lookupPromises = compoundsToResolve.map(async (item) => {
     try {
+      // Direct local DB match to avoid any network discrepancy or name resolution errors
+      const lowerOriginal = item.originalWord.toLowerCase();
+      const lowerSearch = item.searchWord.toLowerCase();
+      const localMatch = KNOWN_COMPOUNDS_DB.find(
+        c => c.name.toLowerCase() === lowerOriginal || 
+             c.name.toLowerCase() === lowerSearch ||
+             c.spanishAliases.some(alias => alias.toLowerCase() === lowerOriginal || alias.toLowerCase() === lowerSearch)
+      );
+      if (localMatch) {
+         return { original: item.originalWord, cid: localMatch.cid };
+      }
+
       // Step A: Search PubChem with translated English term
       let response = await fetchWithTimeout(
         `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(item.searchWord)}/cids/JSON`,
@@ -3198,10 +3351,10 @@ export const auditAndApplyPubChemLinksAsync = async (markdown: string): Promise<
   }
   replacements.sort((a, b) => b.word.length - a.word.length);
 
-  // 2. Wrap all matching keywords with direct PubChem link or the "(ND)" tag safely
+  // 2. Wrap all matching keywords with direct PubChem link or the "(ND)" tag safely robust to Spanish accents
   for (const item of replacements) {
     const escapedTerm = item.word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-    const regex = new RegExp(`\\b(${escapedTerm})\\b`, 'gi');
+    const regex = new RegExp(`(?<=^|[^a-zA-Z0-9áéíóúÁÉÍÓÚüÜñÑ_])(${escapedTerm})(?=$|[^a-zA-Z0-9áéíóúÁÉÍÓÚüÜñÑ_])`, 'gi');
     
     textWithPlaceholders = textWithPlaceholders.replace(regex, (match) => {
       if (item.cid && item.cid !== "ND" && item.cid !== "N/D") {

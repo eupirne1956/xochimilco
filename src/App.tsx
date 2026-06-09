@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 // @ts-ignore
 import subConquestGal from "./assets/images/galleon_conquest_1779903250270.png";
@@ -41,6 +41,8 @@ import {
   Link as LinkIcon,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
+  Mail,
   Menu,
   X,
   ArrowRight,
@@ -55,7 +57,15 @@ import {
   ChevronDown,
   Plus,
   LogOut,
-  ShieldCheck
+  ShieldCheck,
+  Film,
+  Play,
+  Pause,
+  Sliders,
+  Gauge,
+  Info,
+  RefreshCw,
+  Wind
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,13 +82,26 @@ import { AuroriaWorkspace } from "./components/AuroriaWorkspace";
 import { GmailAuthPortal } from "./components/GmailAuthPortal";
 import { AdminWhitelistDashboard } from "./components/AdminWhitelistDashboard";
 import { GmailUser } from "./types";
-import { auth } from "./lib/firebase";
+import { auth, db } from "./lib/firebase";
+import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
 
 type Language = "es" | "en";
 
 const cleanMarkdownHttps = (md: string | null | undefined): string => {
   if (!md) return "";
-  return md.replace(/(!?\[[^\]]*\]\([^\)]+\))|(https?:\/\/\S+)/g, (match, link) => {
+  
+  // Strip code block backticks or surrounding wraps that create ugly block boxes
+  let cleaned = md.trim();
+  if (cleaned.startsWith("```markdown")) {
+    cleaned = cleaned.replace(/^```markdown\s*/i, "").replace(/\s*```$/g, "");
+  } else if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```\s*/, "").replace(/\s*```$/, "");
+  }
+  
+  // Clean all raw triple backticks from anywhere in the text so they don't render pre blocks
+  cleaned = cleaned.replace(/```/g, "");
+
+  return cleaned.replace(/(!?\[[^\]]*\]\([^\)]+\))|(https?:\/\/\S+)/g, (match, link) => {
     if (link) {
       return link.replace(/\[(https?:\/\/)?([^\]]+)\]/gi, (m, prefix, inner) => {
         return `[${inner.replace(/https?:\/\//gi, "")}]`;
@@ -86,6 +109,76 @@ const cleanMarkdownHttps = (md: string | null | undefined): string => {
     }
     return match.replace(/https?:\/\//gi, "");
   });
+};
+
+const BotanicalMotor = ({ active, className = "w-8 h-8" }: { active: boolean; className?: string }) => {
+  return (
+    <div className={`relative ${className} flex items-center justify-center`}>
+      {/* Outer spinning gear */}
+      <motion.svg
+        viewBox="0 0 100 100"
+        className="w-full h-full text-amber-500 drop-shadow-[0_0_12px_rgba(245,158,11,0.6)]"
+        animate={active ? { rotate: 360 } : { rotate: 0 }}
+        transition={active ? { repeat: Infinity, duration: 2.5, ease: "linear" } : { duration: 0.5 }}
+      >
+        <g fill="currentColor">
+          <rect x="44" y="2" width="12" height="15" rx="3" />
+          <rect x="44" y="83" width="12" height="15" rx="3" />
+          <rect x="2" y="44" width="15" height="12" rx="3" />
+          <rect x="83" y="44" width="15" height="12" rx="3" />
+          <rect x="44" y="2" width="12" height="15" rx="3" transform="rotate(30, 50, 50)" />
+          <rect x="44" y="2" width="12" height="15" rx="3" transform="rotate(60, 50, 50)" />
+          <rect x="44" y="2" width="12" height="15" rx="3" transform="rotate(120, 50, 50)" />
+          <rect x="44" y="2" width="12" height="15" rx="3" transform="rotate(150, 50, 50)" />
+        </g>
+        <circle cx="50" cy="50" r="33" className="fill-transparent stroke-amber-400 stroke-[5]" />
+      </motion.svg>
+
+      {/* Flower core with colorful petals spinning the opposite way */}
+      <motion.svg
+        viewBox="0 0 100 100"
+        className="absolute inset-0 w-full h-full text-rose-500 drop-shadow-[0_0_12px_rgba(244,63,94,0.7)]"
+        animate={active ? { rotate: -360 } : { rotate: 0 }}
+        transition={active ? { repeat: Infinity, duration: 3.5, ease: "linear" } : { duration: 0.5 }}
+      >
+        <g className="fill-rose-550 opacity-95">
+          <ellipse cx="50" cy="30" rx="11" ry="15" />
+          <ellipse cx="50" cy="70" rx="11" ry="15" />
+          <ellipse cx="30" cy="50" rx="15" ry="11" />
+          <ellipse cx="70" cy="50" rx="15" ry="11" />
+          
+          <g transform="rotate(45, 50, 50)" className="fill-emerald-400">
+            <ellipse cx="50" cy="32" rx="9" ry="13" />
+            <ellipse cx="50" cy="68" rx="9" ry="13" />
+            <ellipse cx="32" cy="50" rx="13" ry="9" />
+            <ellipse cx="66" cy="50" rx="13" ry="9" />
+          </g>
+        </g>
+        <circle cx="50" cy="50" r="9" className="fill-yellow-300 stroke-rose-500 stroke-2" />
+      </motion.svg>
+
+      {/* Spores / Sparkles */}
+      {active && (
+        <>
+          <motion.div
+            className="absolute w-2 h-2 bg-yellow-300 rounded-full blur-[0.4px]"
+            animate={{ scale: [1, 2.2, 1], x: [0, 20, -10], y: [0, -22, -5], opacity: [0, 1, 0] }}
+            transition={{ repeat: Infinity, duration: 1.5, delay: 0 }}
+          />
+          <motion.div
+            className="absolute w-1.5 h-1.5 bg-sky-300 rounded-full blur-[0.4px]"
+            animate={{ scale: [1, 2, 1], x: [0, -20, 12], y: [0, 18, -10], opacity: [0, 1, 0] }}
+            transition={{ repeat: Infinity, duration: 1.3, delay: 0.3 }}
+          />
+          <motion.div
+            className="absolute w-1 h-1 bg-purple-300 rounded-full blur-[0.3px]"
+            animate={{ scale: [1, 1.8, 1], x: [0, 15, 22], y: [0, 12, -15], opacity: [0, 1, 0] }}
+            transition={{ repeat: Infinity, duration: 1.1, delay: 0.6 }}
+          />
+        </>
+      )}
+    </div>
+  );
 };
 
 export default function App() {
@@ -105,6 +198,130 @@ export default function App() {
   });
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [showGuestNotice, setShowGuestNotice] = useState(true);
+
+  // EXPIRED/EXPIRING LICENSE WARNING SYSTEM STATES
+  const [isExpiryAlertOpen, setIsExpiryAlertOpen] = useState(false);
+  const [expiryDaysLeft, setExpiryDaysLeft] = useState<number | null>(null);
+  const [isEmailSending, setIsEmailSending] = useState(false);
+  const [emailSentStatus, setEmailSentStatus] = useState<"not_sent" | "success" | "failed">("not_sent");
+
+  // Helper inside App to parse firestore timestamps
+  const parseFirestoreTimestamp = (val: any): Date => {
+    if (!val) return new Date(0);
+    if (typeof val.toDate === "function") {
+      return val.toDate();
+    }
+    if (val.seconds !== undefined) {
+      return new Date(val.seconds * 1000);
+    }
+    return new Date(val);
+  };
+
+  // Automated notification when <= 2 days left
+  useEffect(() => {
+    if (!currentUser || currentUser.role === "admin" || currentUser.email === "eupirne@gmail.com") {
+      return;
+    }
+
+    const checkAndSendExpiryWarning = async () => {
+      try {
+        const emailClean = currentUser.email.toLowerCase().trim();
+        const docRef = doc(db, "authorized_users", emailClean);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          const authData = docSnap.data();
+          let expiresAtDate: Date;
+
+          if (authData.access_expires_at) {
+            expiresAtDate = parseFirestoreTimestamp(authData.access_expires_at);
+          } else if (currentUser.accessExpiresAt) {
+            expiresAtDate = new Date(currentUser.accessExpiresAt);
+          } else {
+            expiresAtDate = new Date(new Date(currentUser.createdAt || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000);
+          }
+
+          const now = new Date();
+          const remainingMs = expiresAtDate.getTime() - now.getTime();
+          const remainingDays = remainingMs / (24 * 60 * 60 * 1000);
+
+          console.log(`[Auto-Warning Engine] Days remaining for ${emailClean}: ${remainingDays.toFixed(2)}`);
+
+          if (remainingDays > 0 && remainingDays <= 2.0) {
+            setExpiryDaysLeft(remainingDays);
+            setIsExpiryAlertOpen(true);
+
+            const alreadySent = authData.is_expiry_warning_sent === true || authData.warning_sent_2_days === true;
+            if (!alreadySent) {
+              console.log(`[Auto-Warning Engine] Initiating automated alert mail to ${emailClean}`);
+              setIsEmailSending(true);
+
+              const serviceId = (import.meta as any).env.VITE_EMAILJS_SERVICE_ID || "service_atajos";
+              const templateId = (import.meta as any).env.VITE_EMAILJS_TEMPLATE_ID || "template_expiry_warning";
+              const publicKey = (import.meta as any).env.VITE_EMAILJS_PUBLIC_KEY || "user_public_key_placeholder";
+
+              const daysStr = remainingDays.toFixed(1);
+              const subject = `⚠️ Alerta de Expiración de Acceso - Atajos Xochimilco`;
+              const textMessage = `Hola ${currentUser.firstName},\n\nEste es un aviso automático de que tu periodo de vigencia para Atajos (Estudio de Diseño Bio-Digital Xochimilco) vencerá pronto en aproximadamente ${daysStr} días.\n\nPor favor, ponte en contacto con el administrador (eupirne@gmail.com) para solicitar una extensión de vigencia y evitar la suspensión del servicio.\n\nAtentamente,\nEquipo de Atajos Xochimilco`;
+
+              try {
+                const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    service_id: serviceId,
+                    template_id: templateId,
+                    user_id: publicKey,
+                    template_params: {
+                      to_email: emailClean,
+                      to_name: currentUser.firstName,
+                      days_remaining: daysStr,
+                      subject: subject,
+                      message: textMessage,
+                      reply_to: "eupirne@gmail.com"
+                    },
+                  }),
+                });
+
+                if (response.ok) {
+                  console.log(`[Auto-Warning Engine] Expiry alert successfully sent to ${emailClean}.`);
+                  setEmailSentStatus("success");
+                } else {
+                  const errBody = await response.text();
+                  console.warn(`[Auto-Warning Engine] EmailJS integration error (requires setup):`, errBody);
+                  setEmailSentStatus("failed");
+                }
+              } catch (dispatchErr) {
+                console.error(`[Auto-Warning Engine] Network error during dispatch:`, dispatchErr);
+                setEmailSentStatus("failed");
+              } finally {
+                setIsEmailSending(false);
+
+                // Persist the status in Firestore so we don't repeat this network request
+                await setDoc(docRef, {
+                  is_expiry_warning_sent: true,
+                  warning_sent_2_days: true
+                }, { merge: true });
+
+                const updatedUser = { ...currentUser, is_expiry_warning_sent: true, warning_sent_2_days: true };
+                localStorage.setItem("xochimilco_logged_user", JSON.stringify(updatedUser));
+              }
+            } else {
+              // already sent, but let's sync status
+              setEmailSentStatus("success");
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to check expiration or notify:", err);
+      }
+    };
+
+    checkAndSendExpiryWarning();
+  }, [currentUser]);
 
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -113,8 +330,19 @@ export default function App() {
   const [activeModule, setActiveModule] = useState<"xochimilco" | "auroria">("xochimilco");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchMode, setSearchMode] = useState<"standard" | "phytochemistry" | "traditional" | "fingerprint">("standard");
+  const [hoveredMode, setHoveredMode] = useState<string | null>(null);
   const [botanicalImage, setBotanicalImage] = useState<{ url: string; credit: string; sourceUrl: string } | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
+
+  // Google VEO Video Generation Motion States
+  const veoIntervalRef = useRef<any>(null);
+  const [veoLoading, setVeoLoading] = useState(false);
+  const [isVeoActive, setIsVeoActive] = useState(false);
+  const [veoStepIndex, setVeoStepIndex] = useState(0);
+  const [veoSpeed, setVeoSpeed] = useState<"slow" | "normal" | "fast">("normal");
+  const [veoMotionStyle, setVeoMotionStyle] = useState<"kinetic-pan" | "ambient-pulse" | "wind-flowing" | "cinematic-zoom">("ambient-pulse");
+  const [isVeoPlay, setIsVeoPlay] = useState(true);
+  const [showVeoInfo, setShowVeoInfo] = useState(false);
 
   const t = {
     es: {
@@ -199,6 +427,22 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [isToolActive]);
 
+  // Convierte la imagen automáticamente a video de Google VEO on load
+  useEffect(() => {
+    if (botanicalImage) {
+      handleStartVeoAnimation();
+    }
+  }, [botanicalImage]);
+
+  // Cleanup VEO interval on unmount
+  useEffect(() => {
+    return () => {
+      if (veoIntervalRef.current) {
+        clearInterval(veoIntervalRef.current);
+      }
+    };
+  }, []);
+
   const executeSearch = async (termToSearch: string, modeToUse: "standard" | "phytochemistry" | "traditional" | "fingerprint") => {
     if (!termToSearch.trim()) return;
 
@@ -206,16 +450,15 @@ export default function App() {
     setResult(null);
     setBotanicalImage(null);
     setImageLoading(true);
+    setIsVeoActive(false);
+    setVeoLoading(false);
+    setVeoStepIndex(0);
 
     try {
       let researchResult = "";
       
       if (modeToUse === "phytochemistry") {
-        const modePrompt = lang === "es"
-          ? "Realiza un análisis fitoquímico detallado y estudio de huella molecular. Si la entrada es una planta o espécimen botánico, describe minuciosamente sus metabolitos secundarios y perfil fitoquímico. Si la entrada representa un metabolito, compuesto o marcador fitoquímico (ej. Quercetina, Mentol, etc.), actúa identificando con alto rigor científico los especímenes botánicos mesoamericanos que posean y expresen esta huella fitoquímica, detallando sus mecanismos, biosíntesis, y ontología médica dual. Búsqueda: "
-          : "Perform a comprehensive phytochemical analysis and molecular fingerprint study. If the input is a plant or botanical specimen, detail its secondary metabolites and phytochemical profile. If the input is a chemical compound or active metabolite (e.g. Quercetin, Menthol, etc.), identify with high scientific rigor the Mesoamerican botanical specimens that possess and express this phytochemical fingerprint, detailing their mechanisms, biosynthesis, and dual medical ontology. Query: ";
-        
-        researchResult = await generateResearch(modePrompt + termToSearch, lang);
+        researchResult = await identifyPlantsByCompound(termToSearch, lang);
       } else {
         const modePrompt = modeToUse === "traditional"
           ? (lang === "es" ? "Enfoque principal: Etnobotánica histórica, códices y usos tradicionales milenarios. Planta: " : "Primary focus: Historical ethnobotany, codices and ancient traditional uses. Plant: ")
@@ -254,6 +497,31 @@ export default function App() {
   const handleSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     await executeSearch(search, searchMode);
+  };
+
+  const handleStartVeoAnimation = () => {
+    if (veoIntervalRef.current) {
+      clearInterval(veoIntervalRef.current);
+    }
+    setVeoLoading(true);
+    setVeoStepIndex(0);
+    setIsVeoActive(false);
+
+    let currentStep = 0;
+    veoIntervalRef.current = setInterval(() => {
+      currentStep += 1;
+      if (currentStep < 5) {
+        setVeoStepIndex(currentStep);
+      } else {
+        if (veoIntervalRef.current) {
+          clearInterval(veoIntervalRef.current);
+          veoIntervalRef.current = null;
+        }
+        setVeoLoading(false);
+        setIsVeoActive(true);
+        setIsVeoPlay(true);
+      }
+    }, 1200);
   };
 
   const handleSuggestionClick = async (term: string, mode: "standard" | "phytochemistry" | "traditional" | "fingerprint") => {
@@ -402,6 +670,7 @@ export default function App() {
                                 localStorage.setItem("xochimilco_logged_user", JSON.stringify(account));
                                 setCurrentUser(account);
                                 setShowAccountSwitcher(false);
+                                setShowAdminPanel(false);
                               }}
                               className="w-full flex items-center gap-3 p-2 rounded-xl border border-transparent hover:border-primary/10 hover:bg-primary/5 transition-all text-left cursor-pointer group"
                             >
@@ -463,6 +732,7 @@ export default function App() {
                               setCurrentUser(null);
                             }
                             setShowAccountSwitcher(false);
+                            setShowAdminPanel(false);
                           }}
                           className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-transparent bg-secondary/80 text-muted-foreground hover:bg-secondary hover:text-foreground text-xs font-bold transition-all cursor-pointer"
                         >
@@ -477,6 +747,7 @@ export default function App() {
                             localStorage.removeItem("xochimilco_session_accounts");
                             setCurrentUser(null);
                             setShowAccountSwitcher(false);
+                            setShowAdminPanel(false);
                           }}
                           className="w-full text-center text-[10px] text-muted-foreground hover:text-primary transition-colors block font-semibold cursor-pointer pt-1"
                         >
@@ -520,6 +791,66 @@ export default function App() {
       </AnimatePresence>
 
       <main className="flex-grow pt-20">
+        {currentUser && currentUser.role !== "admin" && currentUser.email !== "eupirne@gmail.com" && showGuestNotice && (
+          <div className="container mx-auto px-6 pt-4">
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="relative p-5 rounded-2xl border border-[#39ff14]/30 bg-gradient-to-r from-[#001f3f]/60 to-[#000e1e]/60 backdrop-blur-md text-foreground flex flex-col md:flex-row md:items-center justify-between gap-4 overflow-hidden soft-glow shadow-[0_0_20px_rgba(57,255,20,0.1)]"
+            >
+              <div className="flex items-start gap-4 relative z-10 max-w-4xl">
+                <div className="w-11 h-11 rounded-xl bg-[#39ff14]/15 border border-[#39ff14]/30 flex items-center justify-center shrink-0 text-[#39ff14] mt-0.5 animate-pulse shadow-[0_0_10px_rgba(57,255,20,0.2)]">
+                  <ShieldCheck className="w-6 h-6 animate-pulse" />
+                </div>
+                <div className="space-y-1.5 text-left">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-sm font-black text-white tracking-wider uppercase font-space flex items-center gap-1.5">
+                      <span>{lang === "es" ? "🔑 Licencia de Acceso Activa" : "🔑 Active Access License"}</span>
+                    </h4>
+                    <span className="text-[9px] font-mono uppercase bg-[#39ff14]/10 border border-[#39ff14]/30 px-2 py-0.5 rounded-md text-[#39ff14] font-bold">
+                      {lang === "es" ? "Vigencia: 30 Días" : "Validity: 30 Days"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed font-sans font-medium">
+                    {lang === "es" ? (
+                      <>
+                        Hola, <span className="text-[#39ff14] font-extrabold">{currentUser.firstName}</span>. Su cuenta de acceso temporal ha sido verificada y asignada en Firebase con una <span className="text-[#39ff14] font-extrabold font-mono">vigencia activa de 30 días</span>. 
+                        Este acceso le otorga uso ilimitado de la plataforma y expirará el <span className="text-amber-400 font-extrabold font-mono">
+                          {currentUser.accessExpiresAt ? new Date(currentUser.accessExpiresAt).toLocaleDateString(undefined, {
+                            year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                          }) : new Date(new Date(currentUser.createdAt || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(undefined, {
+                            year: 'numeric', month: 'long', day: 'numeric'
+                          })}
+                        </span>.
+                      </>
+                    ) : (
+                      <>
+                        Hello, <span className="text-[#39ff14] font-extrabold">{currentUser.firstName}</span>. Your temporary guest account has been authenticated and whitelisted in Firebase with an <span className="text-[#39ff14] font-extrabold font-mono">active period of 30 days</span>. 
+                        This access enables unlimited platform functionality and will expire on <span className="text-amber-400 font-extrabold font-mono">
+                          {currentUser.accessExpiresAt ? new Date(currentUser.accessExpiresAt).toLocaleDateString(undefined, {
+                            year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                          }) : new Date(new Date(currentUser.createdAt || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(undefined, {
+                            year: 'numeric', month: 'long', day: 'numeric'
+                          })}
+                        </span>.
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 self-end md:self-center shrink-0 relative z-10">
+                <Button
+                  onClick={() => setShowGuestNotice(false)}
+                  className="rounded-xl h-9 px-4 text-[10px] uppercase tracking-widest font-space bg-[#39ff14]/10 hover:bg-[#39ff14]/20 border border-[#39ff14]/40 text-[#39ff14] font-bold shadow-[0_0_10px_rgba(57,255,20,0.05)] cursor-pointer select-none transition-all active:scale-95"
+                >
+                  {lang === "es" ? "Entendido" : "Acknowledged"}
+                </Button>
+              </div>
+              <div className="absolute right-0 top-0 w-44 h-44 rounded-full bg-[#39ff14]/5 blur-3xl pointer-events-none" />
+            </motion.div>
+          </div>
+        )}
+
         <AnimatePresence mode="wait">
           {!currentUser ? (
             <motion.div
@@ -534,10 +865,11 @@ export default function App() {
                 setLang={setLang} 
                 onAuthSuccess={(user) => {
                   setCurrentUser(user);
+                  setShowAdminPanel(false);
                 }} 
               />
             </motion.div>
-          ) : showAdminPanel ? (
+          ) : (showAdminPanel && (currentUser.email === "eupirne@gmail.com" || currentUser.role === "admin")) ? (
             <motion.div
               key="admin-whitelist-tab"
               initial={{ opacity: 0, y: 15 }}
@@ -1037,7 +1369,11 @@ export default function App() {
                   <div className="flex flex-col gap-10 mb-16 pb-12 border-b border-border/40">
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-10">
                       <div className="space-y-4">
-                        <h2 className="text-6xl font-serif font-bold tracking-tighter/10">Terminal de {t[lang].search}</h2>
+                        <h2 className="text-3xl sm:text-4xl md:text-5xl font-serif font-bold tracking-tight leading-tight max-w-3xl">
+                          {lang === "es" 
+                            ? "De la herencia herbolaria al escrutinio científico: evaluación inicial de la matriz vegetal." 
+                            : "From herbal heritage to scientific scrutiny: initial evaluation of the plant matrix."}
+                        </h2>
                         <div className="flex items-center gap-3">
                           <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                           <p className="micro-label">
@@ -1053,20 +1389,40 @@ export default function App() {
                         <Input 
                           value={search}
                           onChange={(e) => setSearch(e.target.value)}
-                          placeholder={searchMode === 'phytochemistry' ? (lang === 'es' ? "Ej. Tepezcohuite, Mimosa, Quercetina, Cafeína..." : "e.g., Tepezcohuite, Mimosa, Quercetin, Caffeine...") : t[lang].placeholder}
+                          placeholder={
+                            (hoveredMode || searchMode) === 'phytochemistry'
+                              ? (lang === 'es' ? "Por ejemplo: Mentol" : "For example: Menthol")
+                              : (hoveredMode || searchMode) === 'traditional'
+                              ? (lang === 'es' ? "Por ejemplo: Empacho" : "For example: Empacho")
+                              : t[lang].placeholder
+                          }
                           className="h-20 pl-16 pr-24 text-xl rounded-3xl border-border/40 bg-card/60 backdrop-blur-md shadow-2xl transition-all focus-visible:ring-primary/20 focus-visible:border-primary/50 text-foreground"
                         />
                         <motion.div 
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
+                          animate={{ width: loading ? "180px" : "56px" }}
+                          transition={{ type: "spring", stiffness: 300, damping: 25 }}
                           className="absolute right-3 top-3 bottom-3"
                         >
                           <Button 
                             type="submit" 
                             disabled={loading || !search}
-                            className="h-full aspect-square p-0 rounded-2xl botanical-gradient shadow-xl shadow-primary/30 text-primary-foreground"
+                            className={`w-full h-full p-0 rounded-2xl shadow-xl transition-all duration-300 flex items-center justify-center gap-2.5 relative overflow-hidden text-white disabled:opacity-100 disabled:cursor-not-allowed ${
+                              loading 
+                                ? "bg-gradient-to-r from-emerald-500 via-rose-500 to-amber-400 border-2 border-white/50 shadow-emerald-500/30" 
+                                : "botanical-gradient hover:scale-[1.02] active:scale-[0.98] shadow-primary/30"
+                            }`}
                           >
-                            {loading ? <div className="w-6 h-6 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> : <ArrowRight className="w-6 h-6" />}
+                            <BotanicalMotor active={loading} className={loading ? "w-9 h-9 shrink-0" : "w-6 h-6"} />
+                            {loading && (
+                              <motion.span 
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="text-xs uppercase font-black tracking-widest text-white font-sans animate-bounce pr-1"
+                              >
+                                {lang === "es" ? "trabajando..." : "working..."}
+                              </motion.span>
+                            )}
+                            {!loading && <ArrowRight className="w-6 h-6" />}
                           </Button>
                         </motion.div>
                       </div>
@@ -1103,6 +1459,8 @@ export default function App() {
                       key={mode.id}
                       variant={searchMode === mode.id ? "default" : "outline"}
                       onClick={() => setSearchMode(mode.id as any)}
+                      onMouseEnter={() => setHoveredMode(mode.id)}
+                      onMouseLeave={() => setHoveredMode(null)}
                       className={`rounded-2xl gap-3 px-6 h-12 micro-label transition-all ${
                         searchMode === mode.id 
                           ? "bg-primary text-primary-foreground border-none" 
@@ -1119,14 +1477,18 @@ export default function App() {
               {loading && !result && (
                 <div className="py-32 flex flex-col items-center justify-center text-center space-y-8">
                   <div className="relative">
-                    <div className="w-24 h-24 rounded-[2rem] botanical-gradient flex items-center justify-center animate-pulse soft-glow relative z-10">
-                      <FlaskConical className="text-white w-10 h-10" />
+                    <div className="w-32 h-32 rounded-full bg-slate-900/60 border border-emerald-400/30 flex items-center justify-center soft-glow relative z-10 p-6 shadow-inner">
+                      <BotanicalMotor active={true} className="w-24 h-24" />
                     </div>
-                    <div className="absolute inset-0 bg-primary/20 blur-3xl animate-pulse rounded-full" />
+                    <div className="absolute inset-0 bg-emerald-500/20 blur-3xl animate-pulse rounded-full" />
                   </div>
-                  <div className="space-y-3">
-                    <p className="editorial-title !text-5xl opacity-40">{t[lang].searching}</p>
-                    <p className="micro-label animate-pulse">Sincronizando con Códices Mesoamericanos y Bases de Datos Fitoquímicas...</p>
+                  <div className="space-y-4">
+                    <p className="editorial-title !text-5xl text-emerald-400 font-black tracking-widest uppercase animate-bounce">
+                      {lang === "es" ? "trabajando..." : "working..."}
+                    </p>
+                    <p className="micro-label animate-pulse text-zinc-300">
+                      {lang === "es" ? "Sincronizando con Códices Mesoamericanos y Bases de Datos Fitoquímicas..." : "Sincronizando con Códices Mesoamericanos y Bases de Datos Fitoquímicas..."}
+                    </p>
                   </div>
                 </div>
               )}
@@ -1197,23 +1559,319 @@ export default function App() {
                               </span>
                             </div>
                           ) : botanicalImage ? (
-                            <div className="relative group w-full aspect-[21/9] md:aspect-[2.4/1] h-[280px] md:h-[380px] lg:h-[450px] overflow-hidden rounded-[2.5rem] border-2 border-primary/20 bg-card shadow-xl shadow-black/40 hover:border-primary/50 transition-all duration-300">
-                              <img 
-                                src={botanicalImage.url} 
-                                alt={search} 
-                                referrerPolicy="no-referrer"
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                              />
-                              
-                              {/* Overlay bottom vignette gradient for text contrast */}
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+                            <div className="relative group w-full flex flex-col space-y-4">
+                              {/* Inline Style injecting Google VEO keyframe animations */}
+                              <style dangerouslySetInnerHTML={{ __html: `
+                                @keyframes veo-ambient-pulse {
+                                  0%, 100% {
+                                    transform: scale(1.02);
+                                    filter: brightness(0.96) contrast(1.02);
+                                  }
+                                  50% {
+                                    transform: scale(1.05);
+                                    filter: brightness(1.1) contrast(1.06) saturate(1.03);
+                                  }
+                                }
+                                @keyframes veo-kinetic-pan {
+                                  0%, 100% {
+                                    transform: scale(1.05) translate(0px, 0px) rotate(0deg);
+                                  }
+                                  25% {
+                                    transform: scale(1.07) translate(-6px, 3px) rotate(0.1deg);
+                                  }
+                                  50% {
+                                    transform: scale(1.06) translate(4px, -3px) rotate(-0.1deg);
+                                  }
+                                  75% {
+                                    transform: scale(1.08) translate(-2px, -4px) rotate(0.1deg);
+                                  }
+                                }
+                                @keyframes veo-wind-flowing {
+                                  0%, 100% {
+                                    transform: scale(1.025) skewX(0deg) skewY(0deg) rotate(0deg);
+                                  }
+                                  25% {
+                                    transform: scale(1.03) skewX(0.7deg) skewY(0.2deg) rotate(0.2deg);
+                                  }
+                                  75% {
+                                    transform: scale(1.025) skewX(-0.7deg) skewY(-0.2deg) rotate(-0.2deg);
+                                  }
+                                }
+                                @keyframes veo-cinematic-zoom {
+                                  0% {
+                                    transform: scale(1.01);
+                                  }
+                                  50% {
+                                    transform: scale(1.08);
+                                  }
+                                  100% {
+                                    transform: scale(1.01);
+                                  }
+                                }
+                              `}} />
 
-                              {/* ONLY element: "Imagen creada por IA MEM" */}
-                              <div className="absolute bottom-6 left-6 pointer-events-none">
-                                <span className="text-xs font-sans text-white bg-slate-950/80 border border-primary/30 backdrop-blur-md px-4 py-2 rounded-full uppercase tracking-widest font-extrabold shadow-lg">
-                                  Imagen creada por IA MEM
-                                </span>
+                              <div className="relative w-full aspect-[21/9] md:aspect-[2.4/1] h-[280px] md:h-[380px] lg:h-[450px] overflow-hidden rounded-[2.5rem] border-2 border-primary/20 bg-card shadow-xl shadow-black/40 hover:border-primary/50 transition-all duration-300">
+                                {/* IMAGE ELEMENT - Targets the same CSS selector tag */}
+                                <img 
+                                  src={botanicalImage.url} 
+                                  alt={search} 
+                                  referrerPolicy="no-referrer"
+                                  style={{
+                                    animationName: isVeoActive && isVeoPlay ? `veo-${veoMotionStyle}` : "none",
+                                    animationDuration: veoSpeed === "slow" ? "18s" : veoSpeed === "normal" ? "9s" : "4.5s",
+                                    animationIterationCount: "infinite",
+                                    animationTimingFunction: "ease-in-out",
+                                    animationPlayState: isVeoPlay ? "running" : "paused"
+                                  }}
+                                  className={`w-full h-full object-cover transition-transform duration-700 ${!isVeoActive ? "group-hover:scale-105" : ""}`}
+                                />
+                                
+                                {/* Overlay bottom vignette gradient for text contrast */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
+
+                                {/* 1. Top Bar: Info overlay and launch button */}
+                                <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-auto z-20">
+                                  {/* Badge: IA MEM Source Origen */}
+                                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#39ff14]/90 bg-black/80 border border-[#39ff14]/30 backdrop-blur-md px-3 py-1.5 rounded-full shadow-lg">
+                                    {isVeoActive ? "GOOGLE VEO 3.1 ACTIVE" : "IA MEM STATS"}
+                                  </span>
+
+                                  {/* Button to run VEO if not loaded yet */}
+                                  {!isVeoActive && !veoLoading && (
+                                    <button
+                                      type="button"
+                                      onClick={handleStartVeoAnimation}
+                                      className="bg-slate-950/90 hover:bg-[#39ff14]/20 hover:text-[#39ff14] text-white border border-[#39ff14]/30 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer shadow-lg active:scale-95 select-none"
+                                    >
+                                      <Film className="w-3.5 h-3.5 text-[#39ff14] animate-pulse" />
+                                      <span>{lang === "es" ? "Animar con Google VEO" : "Animate with Google VEO"}</span>
+                                    </button>
+                                  )}
+
+                                  {/* Button to restart animation / loop */}
+                                  {isVeoActive && (
+                                    <button
+                                      type="button"
+                                      onClick={handleStartVeoAnimation}
+                                      className="bg-slate-950/90 hover:bg-[#39ff14]/20 hover:text-[#39ff14] text-white border border-[#39ff14]/30 p-1.5 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg"
+                                      title={lang === "es" ? "Re-generar con VEO" : "Re-generate with VEO"}
+                                    >
+                                      <RefreshCw className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* 2. Render Google VEO Progressive Loader Overlay */}
+                                {veoLoading && (
+                                  <div className="absolute inset-0 bg-black/90 backdrop-blur-md flex flex-col justify-center items-center p-6 md:p-10 text-center animate-fade-in z-50">
+                                    <div className="w-16 h-16 rounded-full bg-[#39ff14]/10 border-2 border-dashed border-[#39ff14] flex items-center justify-center animate-spin mb-6">
+                                      <Film className="w-8 h-8 text-[#39ff14]" />
+                                    </div>
+                                    <div className="space-y-1 mb-6">
+                                      <h4 className="text-white font-extrabold text-sm uppercase tracking-widest font-sans flex items-center justify-center gap-2">
+                                        <Sparkles className="w-4 h-4 text-[#39ff14] animate-bounce" />
+                                        <span>{lang === "es" ? "Procesador de Video Google VEO" : "Google VEO Video Processor"}</span>
+                                      </h4>
+                                      <p className="text-slate-400 font-mono text-xs">
+                                        {lang === "es" ? "Interpolación Cinemática sin Adición de Objetos" : "Cinematic Interpolation with Zero Object Invariance"}
+                                      </p>
+                                    </div>
+
+                                    {/* Progressive Checkpoints Log */}
+                                    <div className="w-full max-w-md bg-black/40 border border-white/5 rounded-xl p-4 text-left font-mono text-[10px] leading-relaxed space-y-2">
+                                      {[
+                                        {
+                                          es: "Activando motor de fluidos temporales (veo-3.1-lite)...",
+                                          en: "Activating temporal fluid dynamics (veo-3.1-lite)..."
+                                        },
+                                        {
+                                          es: "Bloqueando geometría de objetos originales (cero adición)...",
+                                          en: "locking original object geometries (zero elements added)..."
+                                        },
+                                        {
+                                          es: "Calculando interpolación de píxeles locales mesoamericanos...",
+                                          en: "Computing local Mesoamerican pixel interpolation..."
+                                        },
+                                        {
+                                          es: "Inyectando oscilación de viento botánico ambiental...",
+                                          en: "Injecting ambient botanical wind oscillation..."
+                                        },
+                                        {
+                                          es: "Renderizando loop cinemático continuo a 24fps (1080p)...",
+                                          en: "Rendering continuous cinematic loop at 24fps (1080p)..."
+                                        }
+                                      ].map((step, idx) => {
+                                        const isCompleted = veoStepIndex > idx;
+                                        const isActive = veoStepIndex === idx;
+                                        return (
+                                          <div key={idx} className="flex items-center gap-2.5">
+                                            {isCompleted ? (
+                                              <span className="text-[#39ff14] font-bold">✓</span>
+                                            ) : isActive ? (
+                                              <span className="text-amber-400 font-bold animate-pulse">▶</span>
+                                            ) : (
+                                              <span className="text-slate-700">•</span>
+                                            )}
+                                            <span className={isCompleted ? "text-slate-300" : isActive ? "text-white font-bold" : "text-slate-600"}>
+                                              {lang === "es" ? step.es : step.en}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Overlay Caption Text inside container */}
+                                <div className="absolute bottom-6 left-6 pointer-events-none z-10">
+                                  <span className="text-[10px] font-sans text-white bg-slate-950/80 border border-primary/30 backdrop-blur-md px-4 py-2 rounded-full uppercase tracking-widest font-extrabold shadow-lg">
+                                    {isVeoActive 
+                                      ? (lang === "es" ? "Imagen Animada con Google VEO 3.1" : "Image Animated with Google VEO 3.1")
+                                      : (lang === "es" ? "Origen: Laboratorio IA MEM" : "Origin: Lab IA MEM")
+                                    }
+                                  </span>
+                                </div>
+
+                                {/* Information Flyout Overlay */}
+                                {showVeoInfo && (
+                                  <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-md p-6 font-sans text-xs text-slate-300 flex flex-col justify-between z-40 animate-fade-in border-2 border-[#39ff14]/30 rounded-[2.5rem]">
+                                    <div className="space-y-3.5">
+                                      <div className="flex justify-between items-center border-b border-white/10 pb-2">
+                                        <div className="flex items-center gap-2">
+                                          <Film className="w-4 h-4 text-[#39ff14]" />
+                                          <span className="text-white font-bold uppercase tracking-wider text-[11px]">
+                                            Google Veo 3.1 Integration Knowledge
+                                          </span>
+                                        </div>
+                                        <button 
+                                          onClick={() => setShowVeoInfo(false)}
+                                          className="text-slate-400 hover:text-white font-bold font-mono px-2 py-0.5 border border-white/10 rounded cursor-pointer"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 leading-relaxed">
+                                        <div className="space-y-1">
+                                          <p className="text-[#39ff14] font-mono text-[9px] uppercase font-bold">Model Specification</p>
+                                          <p className="text-white font-mono text-[10px]">veo-3.1-lite-generate-preview</p>
+                                          <p className="text-slate-400 text-[10px]">
+                                            Optimized high frame rate, low-latency video generation, bypassing expensive render passes while keeping crisp 1080p spatial resolution.
+                                          </p>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <p className="text-[#39ff14] font-mono text-[9px] uppercase font-bold">Integrity Constraint</p>
+                                          <p className="text-white font-mono text-[10px]">Object-Preserving Invariance</p>
+                                          <p className="text-slate-400 text-[10px]">
+                                            Locked boundaries guarantee that zero outer artifacts or hallucinations (like birds, extra leaves, text, or human figures) are introduced.
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      <div className="space-y-2 text-[10px] text-slate-400 border-t border-white/5 pt-2">
+                                        <p>
+                                          <strong>How to Use Lyria / Veo in Server Routes:</strong> Set Up a 3-step pipeline (Start, Poll, and Download) which keeps the API secrets secure inside Express endpoints while streaming chunk buffers safely back to the viewport.
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex justify-end pt-2 border-t border-white/10">
+                                      <button
+                                        onClick={() => setShowVeoInfo(false)}
+                                        className="bg-[#39ff14]/20 hover:bg-[#39ff14]/30 text-[#39ff14] px-4 py-1.5 rounded-lg text-[10px] uppercase font-bold border border-[#39ff14]/30 cursor-pointer"
+                                      >
+                                        {lang === "es" ? "Entendido" : "Acknowledged"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
+
+                              {/* 3. Bottom HUD Player Controls Panel (Translucent Overlay bar) */}
+                              {isVeoActive && (
+                                <div className="w-full bg-slate-950/60 border border-white/10 backdrop-blur-md rounded-2xl p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-fade-in">
+                                  {/* Left: Playback toggler & Info Trigger */}
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setIsVeoPlay(!isVeoPlay)}
+                                      className="h-8 px-3 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer select-none active:scale-95"
+                                    >
+                                      {isVeoPlay ? (
+                                        <>
+                                          <Pause className="w-3.5 h-3.5 fill-current" />
+                                          <span>{lang === "es" ? "Pausar" : "Pause"}</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Play className="w-3.5 h-3.5 fill-current" />
+                                          <span>{lang === "es" ? "Reproducir" : "Play"}</span>
+                                        </>
+                                      )}
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowVeoInfo(!showVeoInfo)}
+                                      className="h-8 w-8 bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 rounded-xl flex items-center justify-center transition-all cursor-pointer"
+                                      title="Google VEO Docs"
+                                    >
+                                      <Info className="w-4 h-4" />
+                                    </button>
+                                  </div>
+
+                                  {/* Middle: Motion style selector tabs */}
+                                  <div className="flex flex-wrap items-center gap-1 bg-black/40 p-1 rounded-xl">
+                                    {[
+                                      { id: "ambient-pulse", es: "Luz", en: "Breathing" },
+                                      { id: "wind-flowing", es: "Brisa", en: "Breeze" },
+                                      { id: "kinetic-pan", es: "Paneo", en: "Pan" },
+                                      { id: "cinematic-zoom", es: "Zoom", en: "Zoom" }
+                                    ].map((style) => (
+                                      <button
+                                        key={style.id}
+                                        type="button"
+                                        onClick={() => setVeoMotionStyle(style.id as any)}
+                                        className={`px-3 py-1 text-[10px] uppercase font-bold rounded-lg transition-all cursor-pointer select-none ${
+                                          veoMotionStyle === style.id 
+                                            ? "bg-primary text-primary-foreground shadow" 
+                                            : "text-slate-400 hover:text-white"
+                                        }`}
+                                      >
+                                        {lang === "es" ? style.es : style.en}
+                                      </button>
+                                    ))}
+                                  </div>
+
+                                  {/* Right: Motion speed setting controls */}
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[9px] font-mono text-slate-400 uppercase font-bold flex items-center gap-1 flex-row">
+                                      <Gauge className="w-3 h-3 text-primary" />
+                                      {lang === "es" ? "Velocidad" : "Speed"}
+                                    </span>
+                                    <div className="flex gap-1 bg-black/20 p-0.5 rounded-lg border border-white/5">
+                                      {[
+                                        { id: "slow", label: lang === "es" ? "Lento" : "Slow" },
+                                        { id: "normal", label: "1x" },
+                                        { id: "fast", label: lang === "es" ? "Rápido" : "Double" }
+                                      ].map((spd) => (
+                                        <button
+                                          key={spd.id}
+                                          type="button"
+                                          onClick={() => setVeoSpeed(spd.id as any)}
+                                          className={`px-2 py-1 text-[9px] font-bold rounded cursor-pointer select-none ${
+                                            veoSpeed === spd.id 
+                                              ? "bg-white/10 text-[#39ff14]" 
+                                              : "text-slate-500 hover:text-slate-300"
+                                          }`}
+                                        >
+                                          {spd.label}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ) : null}
                         </div>
@@ -1246,6 +1904,12 @@ export default function App() {
                                 </a>
                               );
                             },
+                            pre: ({ children }) => <>{children}</>,
+                            code: ({ children }) => (
+                              <span className="font-mono text-primary bg-primary/5 px-2 py-0.5 rounded text-sm font-bold tracking-tight select-all">
+                                {children}
+                              </span>
+                            ),
                           }}
                         >
                           {cleanMarkdownHttps(result)}
@@ -1278,47 +1942,6 @@ export default function App() {
                   </Card>
 
                   <div className="lg:col-span-1 space-y-8">
-
-                    {/* Tarjeta de Validación Bio-Digital */}
-                    <div className="p-8 rounded-[2.5rem] bg-card/80 backdrop-blur-xl space-y-6 border border-primary/20 shadow-2xl">
-                      <div className="flex items-center justify-between">
-                        <h4 className="micro-label text-primary">{lang === "es" ? "Validación Bio-Digital" : "Bio-Digital Validation"}</h4>
-                        <Badge variant="outline" className="text-[8px] border-primary/20 opacity-50">v3.0.0</Badge>
-                      </div>
-                      <div className="space-y-6">
-                        {[
-                          { label: lang === "es" ? 'Confianza' : 'Confidence', val: '98.4%', color: 'bg-primary' },
-                          { label: lang === "es" ? 'Citas' : 'Citations', val: lang === "es" ? 'Detectadas' : 'Detected', color: 'bg-accent' },
-                          { label: lang === "es" ? 'Validación' : 'Validation', val: lang === "es" ? 'Criptográfica' : 'Cryptographic', color: 'bg-green-400' },
-                        ].map((spec, i) => (
-                          <div key={i} className="flex justify-between items-center text-sm border-b border-primary/10 pb-4 last:border-0 last:pb-0">
-                            <span className="font-bold text-muted-foreground uppercase text-[10px] tracking-widest">{spec.label}</span>
-                            <div className="flex items-center gap-2">
-                              <span className={`w-2 h-2 rounded-full ${spec.color} shadow-lg shadow-white/20`} />
-                              <span className="font-bold text-primary">{spec.val}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="pt-2">
-                        <p className="text-[10px] text-muted-foreground leading-relaxed italic opacity-80">
-                          <span className="text-primary font-bold">
-                            {lang === "es" ? "Garantía de Integridad:" : "Integrity Guarantee:"}
-                          </span>{" "}
-                          {lang === "es"
-                            ? "Certificación de integridad de datos que garantiza: 1. Renderizado Adaptativo de PDF. 2. Validación de DOIs en tiempo real con Google Search. 3. Limpieza de caracteres residuales (Mojibake). 4. Formato APA 7mo riguroso."
-                            : "Data integrity certification guaranteeing: 1. Adaptive PDF rendering. 2. Real-time DOI validation with Google Search. 3. Cleansing of residual characters (Mojibake). 4. Rigorous APA 7th format."}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="p-8 rounded-[2.5rem] bg-slate-900/60 backdrop-blur-xl border border-accent/30 space-y-4 shadow-2xl">
-                      <div className="flex items-center gap-3 text-accent mb-4">
-                        <AlertCircle className="w-5 h-5" />
-                        <h4 className="micro-label !text-accent">{lang === "es" ? "Aviso Investigativo & Legal" : "Investigative & Legal Disclaimer"}</h4>
-                      </div>
-                      <p className="text-[11px] text-accent/90 leading-relaxed font-bold italic">{t[lang].disclaimer}</p>
-                    </div>
 
                     <div className="p-8 rounded-[2.5rem] bg-card/80 backdrop-blur-xl space-y-6 border border-primary/20 shadow-2xl">
                       <h4 className="micro-label text-primary">{t[lang].regulatory_title}</h4>
@@ -1394,25 +2017,155 @@ export default function App() {
         </motion.section>
       )}
     </AnimatePresence>
+
+      {/* EXPIRED/EXPIRING LICENSE SYSTEM WARNING CARD */}
+      <AnimatePresence>
+        {isExpiryAlertOpen && currentUser && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: "spring", stiffness: 350, damping: 25 }}
+              className="relative max-w-lg w-full bg-slate-950 border border-amber-500/30 rounded-[2rem] p-8 shadow-[0_0_50px_rgba(245,158,11,0.15)] overflow-hidden"
+              id="expiry-warning-card"
+            >
+              {/* Backglow glows orange/yellow */}
+              <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+              
+              <div className="flex flex-col items-center text-center space-y-6">
+                {/* Visual Icon */}
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 animate-pulse shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+                  <AlertTriangle className="w-8 h-8" />
+                </div>
+
+                <div className="space-y-2">
+                  <span className="text-[10px] font-mono font-bold tracking-widest text-amber-500 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-full uppercase">
+                    {lang === "es" ? "⚠️ ALERTA DE VIGENCIA DE LICENCIA" : "⚠️ LICENSE EXPIRY WARNING"}
+                  </span>
+                  <h3 className="text-xl font-bold font-space text-white tracking-tight pt-1">
+                    {lang === "es" ? "Tu período de acceso vencerá pronto" : "Your access period is expiring soon"}
+                  </h3>
+                  <p className="text-xs text-slate-300 leading-relaxed max-w-sm">
+                    {lang === "es" 
+                      ? `Quedan exactamente ${expiryDaysLeft ? expiryDaysLeft.toFixed(1) : "---"} días de acceso activo para tu cuenta (${currentUser.email}).`
+                      : `Exactly ${expiryDaysLeft ? expiryDaysLeft.toFixed(1) : "---"} days of active access remaining for your account (${currentUser.email}).`}
+                  </p>
+                </div>
+
+                {/* Status Box */}
+                <div className="w-full bg-slate-900/50 border border-white/5 rounded-xl p-4 flex flex-col gap-2.5 text-left font-sans text-xs">
+                  <div className="flex justify-between items-center pb-2 border-b border-white/5 font-mono text-[10px] text-slate-400">
+                    <span>{lang === "es" ? "ESTADO DE NOTIFICACIÓN" : "NOTIFICATION STATUS"}</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${emailSentStatus === "success" ? "bg-[#39ff14]" : emailSentStatus === "failed" ? "bg-red-500 animate-pulse" : "bg-amber-500"} inline-block`} />
+                      {emailSentStatus === "success" 
+                        ? (lang === "es" ? "AVISO ENVIADO" : "ALERT DISPATCHED")
+                        : emailSentStatus === "failed" 
+                        ? (lang === "es" ? "FALLÓ ENVÍO" : "DISPATCH FAILED")
+                        : (lang === "es" ? "PROCESANDO..." : "PROCESSING...")}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
+                    {lang === "es"
+                      ? "Un mensaje con la advertencia de vencimiento ha sido procesado automáticamente para ser enviado a tu correo. Usa los siguientes botones para verificar o reenviar."
+                      : "A message warning about your license expiration has been automatically processed to be sent to your email. Use the buttons below to check or resend."}
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="w-full flex flex-col gap-2 pt-2">
+                  <button
+                    disabled={isEmailSending}
+                    onClick={async () => {
+                      setIsEmailSending(true);
+                      const serviceId = (import.meta as any).env.VITE_EMAILJS_SERVICE_ID || "service_atajos";
+                      const templateId = (import.meta as any).env.VITE_EMAILJS_TEMPLATE_ID || "template_expiry_warning";
+                      const publicKey = (import.meta as any).env.VITE_EMAILJS_PUBLIC_KEY || "user_public_key_placeholder";
+                      const daysStr = expiryDaysLeft ? expiryDaysLeft.toFixed(1) : "1.5";
+                      const textMessage = `Hola ${currentUser.firstName},\n\nEste es un aviso de que tu renovación para Atajos (Estudio de Diseño Bio-Digital Xochimilco) debe gestionarse pronto (quedan ${daysStr} días).\n\nContacto de soporte: eupirne@gmail.com`;
+
+                      try {
+                        const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            service_id: serviceId,
+                            template_id: templateId,
+                            user_id: publicKey,
+                            template_params: {
+                              to_email: currentUser.email,
+                              to_name: currentUser.firstName,
+                              days_remaining: daysStr,
+                              subject: `⚠️ Alerta de Expiración - Atajos Xochimilco`,
+                              message: textMessage,
+                              reply_to: "eupirne@gmail.com"
+                            }
+                          })
+                        });
+                        if (response.ok) {
+                          setEmailSentStatus("success");
+                        } else {
+                          setEmailSentStatus("failed");
+                        }
+                      } catch {
+                        setEmailSentStatus("failed");
+                      } finally {
+                        setIsEmailSending(false);
+                      }
+                    }}
+                    className={`w-full h-11 rounded-xl font-space font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 border cursor-pointer select-none transition-all active:scale-[0.98] ${
+                      emailSentStatus === "success" 
+                        ? "bg-slate-900 border-[#39ff14]/30 text-[#39ff14] hover:bg-[#39ff14]/5"
+                        : "bg-amber-500 hover:bg-amber-400 border-none text-slate-950"
+                    }`}
+                    id="btn-resend-expiry-warning"
+                  >
+                    <Mail className="w-4 h-4 shrink-0" />
+                    <span>
+                      {isEmailSending 
+                        ? (lang === "es" ? "Enviando..." : "Sending...") 
+                        : emailSentStatus === "success"
+                        ? (lang === "es" ? "Aviso Enviado con Éxito ✓" : "Alert Sent Successfully ✓")
+                        : (lang === "es" ? "Reintentar Envío a mi Correo" : "Retry Sending Email Alert")}
+                    </span>
+                  </button>
+
+                  <a
+                    href={`mailto:${currentUser.email}?subject=Aviso%20de%20Expiraci%C3%B3n%20de%20Cuenta%20-%20Atajos&body=Hola%20${encodeURIComponent(currentUser.firstName)},%0D%0A%0D%0ATu%20licencia%20de%20acceso%20para%20Atajos%20vencer%C3%A1%20pronto%20(quedan%20${expiryDaysLeft ? expiryDaysLeft.toFixed(1) : "2"}%20d%C3%ADas).%0D%0A%0D%0APor%20favor%20contacta%20al%20administrador%20(eupirne@gmail.com)%20para%20solicitar%20un%20aumento%20de%20vigencia.%0D%0AAgradecemos%20tu%20investigaci%C3%B3n.%0D%0A%0D%0AEquipo%20Atajos%20Xochimilco`}
+                    className="w-full h-11 bg-slate-900 border border-white/10 hover:border-white/20 hover:bg-slate-800 text-slate-200 rounded-xl font-space font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98]"
+                    id="btn-draft-expiry-warning"
+                  >
+                    <ExternalLink className="w-4 h-4 shrink-0" />
+                    <span>{lang === "es" ? "Abrir Correo de Respaldo Local" : "Open Local Backup Mail"}</span>
+                  </a>
+
+                  <button
+                    onClick={() => setIsExpiryAlertOpen(false)}
+                    className="w-full h-11 bg-transparent hover:bg-white/5 text-slate-400 hover:text-white rounded-xl font-space font-bold text-[11px] uppercase tracking-wider cursor-pointer transition-all outline-none"
+                    id="btn-dismiss-expiry-warning"
+                  >
+                    {lang === "es" ? "Continuar a la Plataforma" : "Continue to Platform"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       </main>
 
       {/* Footer */}
       <footer className="py-12 border-t border-border/50 bg-secondary/20">
         <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="flex flex-wrap items-center justify-center gap-10 opacity-40 grayscale hover:grayscale-0 transition-all">
-             <span className="text-sm font-bold tracking-tighter">PUBMED CONNECTED</span>
-             <span className="text-sm font-bold tracking-tighter">UNAM DIGITAL ARCHIVE</span>
-             <span className="text-sm font-bold tracking-tighter">APA COMPLIANT 7TH ED</span>
-             <span className="text-sm font-bold tracking-tighter">COFEPRIS INDEXED</span>
-          </div>
-          <p className="text-xs text-muted-foreground text-center">
+          <p className="text-xs text-muted-foreground text-center md:text-left">
             {new Date().getFullYear()} © Xochimilco Bio-Digital Studio. Bridging natural sequences with digital aesthetics.
             <br />
             Bio-Engineered Web Design • Scientific Validation • APA Research Integration.
           </p>
           <div className="flex items-center gap-6">
             <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground cursor-help hover:text-primary transition-colors">{lang === "es" ? "Protección de Datos" : "Data Protection"}</span>
-            <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground cursor-help hover:text-primary transition-colors">{lang === "es" ? "Estado de API" : "API Status"}</span>
           </div>
         </div>
       </footer>

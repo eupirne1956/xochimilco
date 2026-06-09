@@ -6,7 +6,8 @@ export interface GmailUser {
   username: string;
   avatarColor: string;
   createdAt: string;
-  role?: "admin" | "user"; // Added optional role parameter
+  role?: "admin" | "user" | "guest"; // Added optional role parameter
+  accessExpiresAt?: string; // Optional field for tracking guest login expiration duration (30 days)
 }
 
 export interface AuthorizedUser {

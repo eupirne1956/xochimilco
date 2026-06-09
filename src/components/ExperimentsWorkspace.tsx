@@ -31,6 +31,77 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
+
+const BotanicalMotor = ({ active, className = "w-8 h-8" }: { active: boolean; className?: string }) => {
+  return (
+    <div className={`relative ${className} flex items-center justify-center`}>
+      {/* Outer spinning gear */}
+      <motion.svg
+        viewBox="0 0 100 100"
+        className="w-full h-full text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]"
+        animate={active ? { rotate: 360 } : { rotate: 0 }}
+        transition={active ? { repeat: Infinity, duration: 2.5, ease: "linear" } : { duration: 0.5 }}
+      >
+        <g fill="currentColor">
+          <rect x="44" y="2" width="12" height="15" rx="3" />
+          <rect x="44" y="83" width="12" height="15" rx="3" />
+          <rect x="2" y="44" width="15" height="12" rx="3" />
+          <rect x="83" y="44" width="15" height="12" rx="3" />
+          <rect x="44" y="2" width="12" height="15" rx="3" transform="rotate(30, 50, 50)" />
+          <rect x="44" y="2" width="12" height="15" rx="3" transform="rotate(60, 50, 50)" />
+          <rect x="44" y="2" width="12" height="15" rx="3" transform="rotate(120, 50, 50)" />
+          <rect x="44" y="2" width="12" height="15" rx="3" transform="rotate(150, 50, 50)" />
+        </g>
+        <circle cx="50" cy="50" r="33" className="fill-transparent stroke-emerald-300 stroke-[6]" />
+      </motion.svg>
+
+      {/* Flower core with colorful petals spinning the opposite way */}
+      <motion.svg
+        viewBox="0 0 100 100"
+        className="absolute inset-0 w-full h-full text-rose-500 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]"
+        animate={active ? { rotate: -360 } : { rotate: 0 }}
+        transition={active ? { repeat: Infinity, duration: 3.5, ease: "linear" } : { duration: 0.5 }}
+      >
+        <g className="fill-rose-450 opacity-90">
+          <ellipse cx="50" cy="32" rx="10" ry="14" />
+          <ellipse cx="50" cy="68" rx="10" ry="14" />
+          <ellipse cx="32" cy="50" rx="14" ry="10" />
+          <ellipse cx="68" cy="50" rx="14" ry="10" />
+          
+          <g transform="rotate(45, 50, 50)" className="fill-amber-400">
+            <ellipse cx="50" cy="34" rx="8" ry="12" />
+            <ellipse cx="50" cy="66" rx="8" ry="12" />
+            <ellipse cx="34" cy="50" rx="12" ry="8" />
+            <ellipse cx="66" cy="50" rx="12" ry="8" />
+          </g>
+        </g>
+        <circle cx="50" cy="50" r="9" className="fill-yellow-300 stroke-rose-500 stroke-2" />
+      </motion.svg>
+
+      {/* Spores / Sparkles */}
+      {active && (
+        <>
+          <motion.div
+            className="absolute w-2.5 h-2.5 bg-yellow-300 rounded-full blur-[0.4px]"
+            animate={{ scale: [1, 2.2, 1], x: [0, 22, -10], y: [0, -25, -5], opacity: [0, 1, 0] }}
+            transition={{ repeat: Infinity, duration: 1.5, delay: 0 }}
+          />
+          <motion.div
+            className="absolute w-2 h-2 bg-sky-300 rounded-full blur-[0.4px]"
+            animate={{ scale: [1, 2, 1], x: [0, -22, 12], y: [0, 20, -10], opacity: [0, 1, 0] }}
+            transition={{ repeat: Infinity, duration: 1.3, delay: 0.3 }}
+          />
+          <motion.div
+            className="absolute w-1.5 h-1.5 bg-rose-300 rounded-full blur-[0.3px]"
+            animate={{ scale: [1, 1.8, 1], x: [0, 15, 25], y: [0, 15, -15], opacity: [0, 1, 0] }}
+            transition={{ repeat: Infinity, duration: 1.1, delay: 0.6 }}
+          />
+        </>
+      )}
+    </div>
+  );
+};
+
 // 10 Phytochemical/Botanical experiments
 export interface Experiment {
   id: string;
@@ -894,7 +965,7 @@ export function ExperimentsWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
 
         setTemp(prev => {
           if (prev < targetTemp) {
-            const added = parseFloat((3 + Math.random() * 4).toFixed(1));
+            const added = parseFloat((12 + Math.random() * 15).toFixed(1));
             return parseFloat(Math.min(targetTemp, prev + added).toFixed(1));
           } else {
             return parseFloat((targetTemp + (Math.random() * 0.6 - 0.3)).toFixed(1));
@@ -905,29 +976,29 @@ export function ExperimentsWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
         setSimValue(prev => {
           if (activeExp.sim_type === "chromatography") {
             // Eluent front moving up to 100%
-            return Math.min(100, prev + 5);
+            return Math.min(100, prev + 15);
           } else if (temp > targetTemp * 0.7) {
             return Math.min(100, Math.floor(75 + Math.random() * 25));
           }
-          return Math.min(100, prev + 10);
+          return Math.min(100, prev + 25);
         });
 
         // Recovered simulated substance
         setRecoveredValue(prev => {
           if (temp > targetTemp * 0.8) {
-            const rate = activeExp.range_max / 15.0;
+            const rate = activeExp.range_max / 3.0;
             return parseFloat(Math.min(activeExp.default_yield_val * 1.1, prev + rate).toFixed(2));
           }
           return prev;
         });
 
-      }, 800);
+      }, 200);
     } else {
       // Cooling down routine
       interval = setInterval(() => {
-        setTemp(prev => (prev > 24 ? parseFloat((prev - 3).toFixed(1)) : 24));
+        setTemp(prev => (prev > 24 ? parseFloat((prev - 15).toFixed(1)) : 24));
         setSimValue(0);
-      }, 1000);
+      }, 200);
     }
 
     return () => clearInterval(interval);
@@ -1562,14 +1633,36 @@ export function ExperimentsWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
                   <div className="flex gap-4">
                     <Button
                       onClick={() => setIsSimulating(!isSimulating)}
-                      className={`flex-1 h-12 rounded-xl text-xs uppercase font-extrabold tracking-widest gap-2 cursor-pointer text-white ${
-                        isSimulating ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-500 hover:bg-emerald-600 text-slate-950"
+                      className={`flex-1 h-16 rounded-2xl text-xs uppercase font-black tracking-widest gap-4 shadow-xl cursor-pointer text-white transition-all duration-300 relative overflow-hidden group ${
+                        isSimulating 
+                          ? "bg-gradient-to-r from-emerald-500 via-purple-600 to-rose-500 hover:opacity-95 shadow-rose-500/10 scale-[1.01]" 
+                          : "bg-emerald-500 hover:bg-emerald-600 text-slate-950 shadow-emerald-500/10 hover:scale-[1.01]"
                       }`}
                     >
-                      <Play className={`w-4 h-4 ${isSimulating ? "animate-spin" : ""}`} />
-                      {isSimulating 
-                        ? (lang === "es" ? "Pausar Baño/Hormiga" : "Pause Process Run") 
-                        : (lang === "es" ? "Prender Alimentación Reactor" : "Ignite Vessel Core")}
+                      {/* High fidelity motor action in action */}
+                      <BotanicalMotor active={isSimulating} className="w-10 h-10 shrink-0" />
+                      
+                      <div className="flex flex-col items-start">
+                        {isSimulating ? (
+                          <>
+                            <span className="text-[13px] font-black tracking-widest text-white uppercase animate-bounce mt-0.5">
+                              {lang === "es" ? "trabajando..." : "working..."}
+                            </span>
+                            <span className="text-[8px] opacity-90 font-mono tracking-tight uppercase text-emerald-200">
+                              {lang === "es" ? "simulando reactor..." : "simulating reactor..."}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-[11px] font-extrabold tracking-wider">
+                              {lang === "es" ? "Prender Alimentación Reactor" : "Ignite Vessel Core"}
+                            </span>
+                            <span className="text-[8px] opacity-75 font-mono tracking-tight lowercase">
+                              {lang === "es" ? "haz clic para iniciar análisis" : "click to initiate analysis"}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </Button>
 
                     <Button

@@ -30,10 +30,13 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId; 
     }
 
-    // Checking root super admin based on Google Sign-In verified email claim
+    // Checking root super admin based on Google Sign-In verified email claim, and validating other whitelist admin roles relational lookup
     function isAdmin() {
-      return isSignedIn() 
-        && request.auth.token.email == "eupirne@gmail.com";
+      return isSignedIn() && (
+        request.auth.token.email == "eupirne@gmail.com" ||
+        (exists(/databases/$(database)/documents/authorized_users/$(request.auth.token.email)) &&
+         get(/databases/$(database)/documents/authorized_users/$(request.auth.token.email)).data.role == "admin")
+      );
     }
 
     // ==========================================
@@ -53,11 +56,15 @@ service cloud.firestore {
 
     function isValidAuthorizedUser(data) {
       return data.keys().hasAll(['email', 'role', 'access_granted_at', 'access_expires_at'])
-        && data.keys().size() == 4
+        && data.keys().size() >= 4 && data.keys().size() <= 8
         && data.email is string && data.email.size() > 0 && data.email.size() <= 256
         && data.role is string && (data.role == "admin" || data.role == "user")
         && data.access_granted_at is timestamp
-        && data.access_expires_at is timestamp;
+        && data.access_expires_at is timestamp
+        && (!data.keys().hasAll(['name']) || (data.name is string && data.name.size() <= 200))
+        && (!data.keys().hasAll(['password']) || (data.password is string && data.password.size() <= 256))
+        && (!data.keys().hasAll(['is_expiry_warning_sent']) || (data.is_expiry_warning_sent is bool))
+        && (!data.keys().hasAll(['warning_sent_2_days']) || (data.warning_sent_2_days is bool));
     }
 
     // ==========================================
@@ -90,16 +97,16 @@ service cloud.firestore {
 
     // Authorized Whitelist Collection Hardening
     match /authorized_users/{userEmail} {
-      allow get: if isSignedIn() && (isAdmin() || request.auth.token.email.toLower() == userEmail.toLower());
+      allow get: if true;
       allow list: if isAdmin();
       
-      allow create: if isAdmin()
+      allow create: if (incoming().role == "user" || isAdmin())
                     && isValidAuthorizedUser(incoming())
-                    && incoming().email.toLower() == userEmail.toLower();
+                    && incoming().email == userEmail;
                     
-      allow update: if isAdmin()
+      allow update: if (incoming().role == "user" || isAdmin())
                     && isValidAuthorizedUser(incoming())
-                    && incoming().email == existing().email;
+                    && incoming().email == userEmail;
                     
       allow delete: if isAdmin();
     }

@@ -69,6 +69,12 @@ export function AdminWhitelistDashboard({ lang, onClose }: AdminWhitelistProps) 
   const [newDuration, setNewDuration] = useState("30"); // 1, 7, 30, 90, 365, or "custom"
   const [customDays, setCustomDays] = useState("30");
 
+  // Custom in-app confirmation overlays for restricted sandbox environments
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [emailToRevoke, setEmailToRevoke] = useState("");
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
+
   const fetchWhitelist = async () => {
     try {
       setIsLoading(true);
@@ -165,31 +171,38 @@ export function AdminWhitelistDashboard({ lang, onClose }: AdminWhitelistProps) 
     }
   };
 
-  const handleDeleteUser = async (emailToDelete: string) => {
+  const handleDeleteUser = (emailToDelete: string) => {
     if (emailToDelete.toLowerCase() === "eupirne@gmail.com") {
-      alert(lang === "es" ? "No se puede revocar el acceso del administrador principal." : "Cannot revoke access of the main super administrator.");
+      setAlertMessage(lang === "es" 
+        ? "No se puede revocar el acceso del administrador principal." 
+        : "Cannot revoke access of the main super administrator."
+      );
+      setShowAlertModal(true);
       return;
     }
 
-    const confirmMsg = lang === "es" 
-      ? `¿Estás seguro de que deseas revocar el acceso de ${emailToDelete}? Esta acción es inmediata.`
-      : `Are you sure you want to revoke access for ${emailToDelete}? This is immediate.`;
-    
-    if (!window.confirm(confirmMsg)) return;
+    setEmailToRevoke(emailToDelete);
+    setShowConfirmModal(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!emailToRevoke) return;
+    setShowConfirmModal(false);
 
     try {
       setIsLoading(true);
       setErrorText("");
       setSuccessText("");
       
-      const docRef = doc(db, "authorized_users", emailToDelete.toLowerCase());
+      const docRef = doc(db, "authorized_users", emailToRevoke.toLowerCase());
       await deleteDoc(docRef);
 
       setSuccessText(lang === "es" 
-        ? `Se ha eliminado correctamente el acceso de ${emailToDelete}.`
-        : `Successfully removed access credentials for ${emailToDelete}.`
+        ? `Se ha eliminado correctamente el acceso de ${emailToRevoke}.`
+        : `Successfully removed access credentials for ${emailToRevoke}.`
       );
 
+      setEmailToRevoke("");
       await fetchWhitelist();
     } catch (err: any) {
       console.error("Delete whitelist failed:", err);
@@ -260,13 +273,13 @@ export function AdminWhitelistDashboard({ lang, onClose }: AdminWhitelistProps) 
             {/* Input Email */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-mono tracking-wider font-extrabold text-slate-400 uppercase">
-                {lang === "es" ? "Correo Google de Cuenta" : "Google Email Account"}
+                {lang === "es" ? "Correo Electrónico" : "Email Account"}
               </label>
               <input 
                 type="email" 
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
-                placeholder="ej: nombre@gmail.com"
+                placeholder="ej: nombre@correo.com"
                 className="w-full h-12 bg-slate-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
                 required
               />
@@ -501,6 +514,101 @@ export function AdminWhitelistDashboard({ lang, onClose }: AdminWhitelistProps) 
         </div>
 
       </div>
+
+      {/* Custom Confirmation Dialog for Revoking Accounts */}
+      <AnimatePresence>
+        {showConfirmModal && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-md bg-slate-900 border border-red-500/30 rounded-3xl p-6 md:p-8 text-center space-y-6 shadow-2xl relative"
+            >
+              <div className="mx-auto w-12 h-12 rounded-full bg-red-500/10 border border-red-500/25 flex items-center justify-center text-red-400">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold font-serif text-white">
+                  {lang === "es" ? "⚠️ ¿Confirmar Revocación?" : "⚠️ Confirm Revocation?"}
+                </h3>
+                <p className="text-sm text-slate-300 leading-relaxed font-sans">
+                  {lang === "es" ? (
+                    <>
+                      ¿Estás seguro de que deseas revocar el acceso y eliminar a <span className="text-[#39ff14] font-bold font-mono">{emailToRevoke}</span> de la lista autorizada? Esta acción es instantánea.
+                    </>
+                  ) : (
+                    <>
+                      Are you sure you want to revoke access and delete <span className="text-[#39ff14] font-bold font-mono">{emailToRevoke}</span> from the authorized list? This action is instant.
+                    </>
+                  )}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-4 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowConfirmModal(false);
+                    setEmailToRevoke("");
+                  }}
+                  className="flex-1 h-12 rounded-xl bg-slate-800 hover:bg-slate-700 font-bold text-xs uppercase tracking-wider text-slate-300 cursor-pointer transition-colors"
+                >
+                  {lang === "es" ? "Cancelar" : "Cancel"}
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeleteUser}
+                  className="flex-1 h-12 rounded-xl bg-rose-600 hover:bg-rose-500 font-bold text-xs uppercase tracking-wider text-white cursor-pointer transition-colors"
+                >
+                  {lang === "es" ? "Sí, Revocar" : "Yes, Revoke"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Custom Alert Modal (e.g. for eupirne@gmail.com restriction) */}
+      <AnimatePresence>
+        {showAlertModal && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-md bg-slate-900 border border-yellow-500/30 rounded-3xl p-6 md:p-8 text-center space-y-6 shadow-2xl relative"
+            >
+              <div className="mx-auto w-12 h-12 rounded-full bg-yellow-500/10 border border-yellow-500/25 flex items-center justify-center text-yellow-400">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold font-serif text-white">
+                  {lang === "es" ? "Acción Restringida" : "Action Restricted"}
+                </h3>
+                <p className="text-sm text-slate-300 leading-relaxed font-sans">
+                  {alertMessage}
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAlertModal(false);
+                    setAlertMessage("");
+                  }}
+                  className="w-full h-12 rounded-xl bg-slate-800 hover:bg-slate-700 font-bold text-xs uppercase tracking-wider text-slate-300 cursor-pointer transition-colors"
+                >
+                  {lang === "es" ? "Entendido" : "Understood"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );
