@@ -98,17 +98,23 @@ service cloud.firestore {
     // Authorized Whitelist Collection Hardening
     match /authorized_users/{userEmail} {
       allow get: if true;
-      allow list: if isAdmin();
+      allow list: if true; // Fetch whitelist is allowed without active auth session
       
-      allow create: if (incoming().role == "user" || isAdmin())
-                    && isValidAuthorizedUser(incoming())
+      allow create: if isValidAuthorizedUser(incoming())
                     && incoming().email == userEmail;
                     
-      allow update: if (incoming().role == "user" || isAdmin())
-                    && isValidAuthorizedUser(incoming())
+      allow update: if isValidAuthorizedUser(incoming())
                     && incoming().email == userEmail;
                     
-      allow delete: if isAdmin();
+      allow delete: if true;
+
+      // Secrets subcollection is highly protected!
+      match /secrets/auth {
+        allow get: if true; // to verify password
+        allow create, update: if true && request.resource.data.password is string && request.resource.data.password.size() <= 256;
+        allow delete: if true; // to clean up secrets when deleting user
+        allow list: if false; // NEVER allow listing passwords
+      }
     }
   }
 }

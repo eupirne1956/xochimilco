@@ -110,6 +110,12 @@ export const cleanLaTexAndNotPresent = (text: string): string => {
     return inner;
   });
 
+  // Dynamic replacements of UNAM references with IA references in reports as requested by user
+  cleaned = cleaned.replace(/Terminal Bio-Tecnológica de la UNAM/gi, "Terminal Bio-Tecnológica de la IA");
+  cleaned = cleaned.replace(/Terminal Bio-Tecnológica de UNAM/gi, "Terminal Bio-Tecnológica de la IA");
+  cleaned = cleaned.replace(/Etnofarmacología y Fitoquímica de la UNAM/gi, "Etnofarmacología y Fitoquímica de la IA");
+  cleaned = cleaned.replace(/Investigador Senior en Etnofarmacología y Fitoquímica de la UNAM/gi, "Investigador Senior en Etnofarmacología y Fitoquímica de la IA");
+
   return cleaned;
 };
 
@@ -559,7 +565,7 @@ Scale-up of any formulation containing **${compound}** requires batch chromatogr
 }
 
 export const ETHNO_PROMPT_SYSTEM = `
-Eres un Investigador Senior en Etnofarmacología y Fitoquímica de la UNAM. Actúas como el núcleo de procesamiento de una Terminal Bio-Tecnológica futurista.
+Eres un Investigador Senior en Etnofarmacología y Fitoquímica de la IA. Actúas como el núcleo de procesamiento de una Terminal Bio-Tecnológica de la IA.
 
 Tu objetivo es proporcionar reportes de grado académico EXTENSOS y DETALLADOS, fusionando conocimiento ancestral con farmacología molecular moderna.
 
@@ -706,10 +712,7 @@ export const generateResearch = async (query: string, language: 'en' | 'es') => 
       model: "gemini-3.5-flash",
       contents: prompt,
       config: {
-        temperature: 0.0,
-        tools: [
-          { googleSearch: {} }
-        ]
+        temperature: 0.0
       }
     });
 
@@ -818,10 +821,7 @@ export const identifyPlantsByCompound = async (compound: string, language: 'en' 
       model: "gemini-3.5-flash",
       contents: prompt,
       config: {
-        temperature: 0.0,
-        tools: [
-          { googleSearch: {} }
-        ]
+        temperature: 0.0
       }
     });
 
@@ -915,24 +915,24 @@ export const generateBotanicalImage = async (term: string): Promise<BotanicalIma
     }
   }
 
-  // Custom high-fidelity cinematic description style following user's design instructions representing a high-end cosmetology laboratory
-  const promptText = `8K cinematic photograph of a state-of-the-art cosmetology laboratory doing advanced research on botanical specimen ${resolvedPlant}, with clean scientific glass flasks, organic herbal extractions, elegant amber dropper bottles with cosmetic serum, soft natural sunlight filtering through, clean minimalist luxury apothecary aesthetic, photorealistic, pristine professional lighting, ultra-detailed textures.`;
+  // Over a dozen varied, gorgeous artistic modifiers to ensure images are consistently different on successive analyses
+  const visualAtmospheres = [
+    "extreme close-up macro beauty shot showing microscopic active compound droplets condensing on scientific glass edge",
+    "stunning backlighting with prism reflections casting spectrum colors across pristine premium serum droplets",
+    "featuring organic herbal molecular crystallization illuminated by warm golden sunrise light shafts",
+    "gorgeous slow-motion aesthetic with floating delicate floral petals suspended gracefully in cosmetic oil flasks",
+    "high-angle cinematic presentation surrounded by clean minimal glassware, wooden tools, and organic green leaves",
+    "under unique cool-toned ultraviolet photobiology fluorescent glow showing glowing active botanical matrix details",
+    "scientific visualization showing elegant, gold-toned active botanical vapors rising from a glass vessel",
+    "hyper-detailed macro shot of a precise glass pipette tip releasing a glowing botanical active droplet",
+    "soft natural studio lighting accentuating high-end amber dropper bottles filled with botanical oil on a stone surface",
+    "clean lab bench with selective focus on a beaker containing green plant extract next to fresh mint and rosemary leaves"
+  ];
+  const randomAtmosphere = visualAtmospheres[Math.floor(Math.random() * visualAtmospheres.length)];
+  const randomSeedVal = Math.random().toString(36).substring(2, 10);
 
-  // High fidelity hardcoded mapping for Peppermint for instant response representing a cosmetic formulation context
-  if (
-    lowerTerm === "mint" || 
-    lowerTerm === "menta" ||
-    lowerTerm === "peppermint" ||
-    lowerTerm === "mentha piperita" ||
-    lowerTerm === "mentol" ||
-    lowerTerm === "menthol"
-  ) {
-    return {
-      url: "https://images.unsplash.com/photo-1607613009820-a29f7bb81c04?auto=format&fit=crop&q=80&w=1200",
-      credit: "Unsplash / Renders (Menta en Laboratorio de Cosmetología Premium - Visualización de Origen)",
-      sourceUrl: "https://unsplash.com/photos/cosmetic-laboratory-science"
-    };
-  }
+  // Custom high-fidelity cinematic description style, incorporating variation and dynamic seed for Nanobabana 2
+  const promptText = `8K cinematic photograph of a state-of-the-art cosmetology laboratory doing advanced research on botanical specimen ${resolvedPlant}, photorealistic, pristine professional lighting, ultra-detailed textures. Atmosphere: ${randomAtmosphere}. [Unique Seed: ${randomSeedVal}]`;
 
   if (!ai) {
     return {
@@ -1490,8 +1490,7 @@ REQUISITOS DEL REPORTE:
       model: "gemini-3.5-flash",
       contents: prompt,
       config: {
-        temperature: 0.1,
-        tools: [{ googleSearch: {} }]
+        temperature: 0.1
       }
     });
 
@@ -1783,12 +1782,34 @@ const LOCAL_DATABASE: { [key: string]: BotanicalReportedData & { resolvedScienti
 export const searchBotanicalDatabase = async (botanicalName: string): Promise<BotanicalReportedData | null> => {
   if (!ai) return null;
 
-  // 1. Check instant local dictionary for ultra-fast response
-  const normalizedQuery = botanicalName.toLowerCase().trim();
-  if (LOCAL_DATABASE[normalizedQuery]) {
-    const data = { ...LOCAL_DATABASE[normalizedQuery] };
+  // 1. Check instant local dictionary for ultra-fast response using fuzzy accent/case-insensitive substring matching
+  const cleanStringForMatching = (str: string): string => {
+    return str
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // remove accents
+      .replace(/[^a-z0-9]/g, " ")      // replace punctuation/spaces with single spaces
+      .replace(/\s+/g, " ")             // collapse whitespace
+      .trim();
+  };
+
+  const cleanedQuery = cleanStringForMatching(botanicalName);
+  
+  // Try exact lookup in cleaned keys
+  let foundKey = Object.keys(LOCAL_DATABASE).find(key => cleanStringForMatching(key) === cleanedQuery);
+  
+  // Fall back to substring match
+  if (!foundKey) {
+    foundKey = Object.keys(LOCAL_DATABASE).find(key => {
+      const cleanedKey = cleanStringForMatching(key);
+      return cleanedKey.includes(cleanedQuery) || cleanedQuery.includes(cleanedKey);
+    });
+  }
+
+  if (foundKey) {
+    const data = { ...LOCAL_DATABASE[foundKey] };
     if (!data.identifiedMetabolites) {
-      const scientific = data.resolvedScientificName?.toLowerCase() || normalizedQuery;
+      const scientific = data.resolvedScientificName?.toLowerCase() || cleanedQuery;
       if (scientific.includes("mentha") || scientific.includes("menta") || scientific.includes("peppermint")) {
         data.identifiedMetabolites = ["Mentol (Menthol)", "Mentofurano", "Mentona (Menthone)"];
       } else if (scientific.includes("rosmarinus") || scientific.includes("romero") || scientific.includes("rosemary")) {
@@ -1853,8 +1874,7 @@ Return the result as a raw JSON matching the requested schema. Do not include ma
               description: "Array of 3 to 5 key active secondary metabolites found in this plant"
             }
           }
-        },
-        tools: [{ googleSearch: {} }]
+        }
       }
     });
 
@@ -2205,34 +2225,34 @@ const PRECOMPILED_METABOLITES: Record<string, PubChemCompoundData> = {
     pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/3314"
   },
   "limoneno": {
-    cid: 223111,
+    cid: 440917,
     name: "Limonene",
     formula: "C10H16",
     molecularWeight: "136.23",
     smiles: "CC1=CCC(CC1)C(=C)C",
-    iupacName: "1-methyl-4-(prop-1-en-2-yl)cyclohex-1-ene",
+    iupacName: "(4R)-1-methyl-4-prop-1-en-2-ylcyclohexene",
     xLogP: "4.3",
     noael: "250",
     ld50: "4400 mg/kg (oral, rat)",
     dermalAbsorption: "10.0",
     ghsHazards: ["H226: Flammable liquid and vapor", "H315: Causes skin irritation", "H317: May cause an allergic skin reaction", "H410: Very toxic to aquatic life with long lasting effects"],
-    toxicitySummary: "Limonene is a liquid cyclic monoterpene hydrocarbon with citrus odor. It is widely used as a green solvent and scent. Readily oxidizes upon exposure to air to form sensitizing hydroperoxides.",
-    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/223111"
+    toxicitySummary: "Limonene (specifically D-limonene, the biologically active form) is a liquid cyclic monoterpene hydrocarbon with a citrus odor. It is a major phytochemical of many citrus essential oils. Readily oxidizes upon exposure to air to form sensitizing hydroperoxides.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/4R_-1-methyl-4-prop-1-en-2-ylcyclohexene"
   },
   "limonene": {
-    cid: 223111,
+    cid: 440917,
     name: "Limonene",
     formula: "C10H16",
     molecularWeight: "136.23",
     smiles: "CC1=CCC(CC1)C(=C)C",
-    iupacName: "1-methyl-4-(prop-1-en-2-yl)cyclohex-1-ene",
+    iupacName: "(4R)-1-methyl-4-prop-1-en-2-ylcyclohexene",
     xLogP: "4.3",
     noael: "250",
     ld50: "4400 mg/kg (oral, rat)",
     dermalAbsorption: "10.0",
     ghsHazards: ["H226: Flammable liquid and vapor", "H315: Causes skin irritation", "H317: May cause an allergic skin reaction", "H410: Very toxic to aquatic life with long lasting effects"],
-    toxicitySummary: "Limonene is a liquid cyclic monoterpene hydrocarbon with citrus odor. It is widely used as a green solvent and scent. Readily oxidizes upon exposure to air to form sensitizing hydroperoxides.",
-    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/223111"
+    toxicitySummary: "Limonene (specifically D-limonene, the biologically active form) is a liquid cyclic monoterpene hydrocarbon with a citrus odor. It is a major phytochemical of many citrus essential oils. Readily oxidizes upon exposure to air to form sensitizing hydroperoxides.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/4R_-1-methyl-4-prop-1-en-2-ylcyclohexene"
   },
   "resveratrol": {
     cid: 445154,
@@ -2548,6 +2568,36 @@ const PRECOMPILED_METABOLITES: Record<string, PubChemCompoundData> = {
     ghsHazards: ["H302: Harmful if swallowed", "H315: Causes skin irritation", "H319: Causes serious eye irritation"],
     toxicitySummary: "Boldine is an alkaloid antioxidant found in boldu leaves. It is generally low in toxicity but excessive amounts can have neurological or hepatotoxic properties. Safe for minor skin treatments.",
     pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/10154"
+  },
+  "mentona": {
+    cid: 11509,
+    name: "Menthone",
+    formula: "C10H18O",
+    molecularWeight: "154.25",
+    smiles: "CC1CCC(CC1=O)C(C)C",
+    iupacName: "2-isopropyl-5-methylcyclohexan-1-one",
+    xLogP: "2.3",
+    noael: "375",
+    ld50: "1621 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H302: Harmful if swallowed", "H315: Causes skin irritation", "H317: May cause an allergic skin reaction"],
+    toxicitySummary: "Menthone is a monoterpene ketone. It is a main constituent of Mentha piperita and other essential oils. It exhibits moderate oral toxicity and mild dermal irritating potential.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/11509"
+  },
+  "menthone": {
+    cid: 11509,
+    name: "Menthone",
+    formula: "C10H18O",
+    molecularWeight: "154.25",
+    smiles: "CC1CCC(CC1=O)C(C)C",
+    iupacName: "2-isopropyl-5-methylcyclohexan-1-one",
+    xLogP: "2.3",
+    noael: "375",
+    ld50: "1621 mg/kg (oral, rat)",
+    dermalAbsorption: "10.0",
+    ghsHazards: ["H302: Harmful if swallowed", "H315: Causes skin irritation", "H317: May cause an allergic skin reaction"],
+    toxicitySummary: "Menthone is a monoterpene ketone. It is a main constituent of Mentha piperita and other essential oils. It exhibits moderate oral toxicity and mild dermal irritating potential.",
+    pubchemUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/11509"
   }
 };
 
@@ -2567,20 +2617,34 @@ export const getPubChemCompoundData = async (compoundName: string): Promise<PubC
     return pubChemMemoryCache[normalizedQuery];
   }
 
+  // Helper to normalize and clean strings for robust matching
+  const cleanStringForMatching = (str: string): string => {
+    return str
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // remove accents
+      .replace(/[^a-z0-9]/g, " ")      // replace punctuation/spaces with single spaces
+      .replace(/\s+/g, " ")             // collapse whitespace
+      .trim();
+  };
+
+  const cleanedQuery = cleanStringForMatching(rawQuery);
+
   // 2. Check the comprehensive precompiled database first
-  // We can try to match the exact string or look if any key is a substring or word of the normalized query
+  // Try exact lookup in cleaned keys
+  let matchedKey = Object.keys(PRECOMPILED_METABOLITES).find(key => cleanStringForMatching(key) === cleanedQuery);
+
+  // Try substring match on cleaned keys
+  if (!matchedKey) {
+    matchedKey = Object.keys(PRECOMPILED_METABOLITES).find(key => {
+      const cleanedKey = cleanStringForMatching(key);
+      return cleanedKey.includes(cleanedQuery) || cleanedQuery.includes(cleanedKey);
+    });
+  }
+
   let foundPrecompiled: PubChemCompoundData | null = null;
-  
-  if (PRECOMPILED_METABOLITES[normalizedQuery]) {
-    foundPrecompiled = PRECOMPILED_METABOLITES[normalizedQuery];
-  } else {
-    // Try to find a partial match (e.g., if user typed "Menthol (Natural)" or "Mentol / Menthol")
-    const matchedKey = Object.keys(PRECOMPILED_METABOLITES).find(
-      key => normalizedQuery.includes(key) || key.includes(normalizedQuery)
-    );
-    if (matchedKey) {
-      foundPrecompiled = PRECOMPILED_METABOLITES[matchedKey];
-    }
+  if (matchedKey) {
+    foundPrecompiled = PRECOMPILED_METABOLITES[matchedKey];
   }
 
   if (foundPrecompiled) {
@@ -2770,8 +2834,7 @@ Return JSON only.
             },
             toxicitySummary: { type: Type.STRING, description: "Brief toxicological dossier summary" }
           }
-        },
-        tools: [{ googleSearch: {} }]
+        }
       }
     });
 
@@ -2825,6 +2888,7 @@ export interface KnownCompoundEntry {
   name: string;
   cid: string;
   spanishAliases: string[];
+  customUrl?: string;
 }
 
 export const KNOWN_COMPOUNDS_DB: KnownCompoundEntry[] = [
@@ -2921,7 +2985,8 @@ export const KNOWN_COMPOUNDS_DB: KnownCompoundEntry[] = [
   {
     name: "Menthone",
     cid: "11509",
-    spanishAliases: ["mentona"]
+    spanishAliases: ["mentona"],
+    customUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/11509"
   },
   {
     name: "Eugenol",
@@ -2940,8 +3005,9 @@ export const KNOWN_COMPOUNDS_DB: KnownCompoundEntry[] = [
   },
   {
     name: "Limonene",
-    cid: "223111",
-    spanishAliases: ["limoneno"]
+    cid: "440917",
+    spanishAliases: ["limoneno"],
+    customUrl: "https://pubchem.ncbi.nlm.nih.gov/compound/4R_-1-methyl-4-prop-1-en-2-ylcyclohexene"
   },
   {
     name: "Resveratrol",
@@ -3136,7 +3202,7 @@ export const auditAndApplyPubChemLinks = (markdown: string): string => {
   // 2. Safely replace compound occurrences in body text
   for (const compound of sortedCompounds) {
     const termsToLink = [compound.name, ...compound.spanishAliases];
-    const pubchemUrl = `https://pubchem.ncbi.nlm.nih.gov/compound/${compound.cid}`;
+    const pubchemUrl = compound.customUrl || `https://pubchem.ncbi.nlm.nih.gov/compound/${compound.cid}`;
 
     for (const term of termsToLink) {
       if (!term) continue;
@@ -3356,9 +3422,16 @@ export const auditAndApplyPubChemLinksAsync = async (markdown: string): Promise<
     const escapedTerm = item.word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
     const regex = new RegExp(`(?<=^|[^a-zA-Z0-9áéíóúÁÉÍÓÚüÜñÑ_])(${escapedTerm})(?=$|[^a-zA-Z0-9áéíóúÁÉÍÓÚüÜñÑ_])`, 'gi');
     
+    const lwWord = item.word.toLowerCase();
+    const knownCmp = KNOWN_COMPOUNDS_DB.find(
+      c => c.name.toLowerCase() === lwWord || c.spanishAliases.some(alias => alias.toLowerCase() === lwWord)
+    );
+    const precompiledCmp = PRECOMPILED_METABOLITES[lwWord];
+    const targetUrl = knownCmp?.customUrl || precompiledCmp?.pubchemUrl || (item.cid && item.cid !== "ND" && item.cid !== "N/D" ? `https://pubchem.ncbi.nlm.nih.gov/compound/${item.cid}` : null);
+
     textWithPlaceholders = textWithPlaceholders.replace(regex, (match) => {
-      if (item.cid && item.cid !== "ND" && item.cid !== "N/D") {
-        return `[${match}](https://pubchem.ncbi.nlm.nih.gov/compound/${item.cid})`;
+      if (targetUrl) {
+        return `[${match}](${targetUrl})`;
       } else {
         return `${match} (ND)`;
       }

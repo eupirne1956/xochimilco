@@ -807,7 +807,7 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
     for (let i = 0; i < steps.length; i++) {
       setConsoleStatus(prev => [...prev, `[SYSTEM LOG - ${new Date().toLocaleTimeString()}]: ${steps[i]}`]);
       setCurrentStep(i);
-      await new Promise(resolve => setTimeout(resolve, i === 0 || i === 3 || i === 6 ? 150 : 80));
+      await new Promise(resolve => setTimeout(resolve, 8));
     }
 
     try {
@@ -1018,25 +1018,27 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
             <div className="absolute top-0 right-0 w-48 h-48 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
             
             <CardHeader className="border-b border-primary/10 pb-6">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary">
+                  <div className="w-10 h-10 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary shrink-0">
                     <Settings className="w-5 h-5 animate-spin-slow" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl font-bold font-serif">{ta[lang].profiles_title}</CardTitle>
-                    <CardDescription className="text-xs">{ta[lang].profiles_desc}</CardDescription>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <CardTitle className="text-xl font-bold font-serif">{ta[lang].profiles_title}</CardTitle>
+                      <Button
+                        type="button"
+                        onClick={handleNewStudy}
+                        variant="outline"
+                        className="rounded-xl border-indigo-500/35 text-indigo-400 hover:bg-indigo-500/10 text-xs font-bold flex items-center gap-1.5 px-3 h-8"
+                      >
+                        <FlaskConical className="w-3.5 h-3.5" />
+                        {ta[lang].new_study}
+                      </Button>
+                    </div>
+                    <CardDescription className="text-xs mt-0.5">{ta[lang].profiles_desc}</CardDescription>
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  onClick={handleNewStudy}
-                  variant="outline"
-                  className="rounded-xl border-indigo-500/35 text-indigo-400 hover:bg-indigo-500/10 text-xs font-bold flex items-center gap-1 px-3 h-9"
-                >
-                  <FlaskConical className="w-4 h-4" />
-                  {ta[lang].new_study}
-                </Button>
               </div>
             </CardHeader>
             <CardContent className="p-8 space-y-6">
@@ -1122,16 +1124,16 @@ export function AuroriaWorkspace({ lang = "es" }: { lang?: "es" | "en" }) {
                 // Form content depending on mode
                 <div className="space-y-6">
                   {/* Reset Starting Point Button */}
-                  <div className="flex justify-end">
+                  <div className="flex justify-start">
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => setStartingPoint("choice")}
+                      onClick={handleNewStudy}
                       className="text-muted-foreground hover:text-white text-[11px] font-mono h-7 px-2 flex items-center gap-1.5"
                     >
                       <RefreshCw className="w-3 h-3" />
-                      {lang === "es" ? "← Cambiar Punto de Partida" : "← Change Starting Point"}
+                      {lang === "es" ? "← Iniciar Nuevo Estudio" : "← Start New Study"}
                     </Button>
                   </div>
 

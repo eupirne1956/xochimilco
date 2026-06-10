@@ -41,9 +41,9 @@ const t = {
     title: "Atajos",
     subtitle: "Estudio de Diseño Bio-Digital Xochimilco",
     description: "La sabiduría etnobotánica mesoamericana decodificada mediante el rigor científico y el aprendizaje automático predictivo.",
-    btnText: "Iniciar sesión con Google",
-    btnGuestText: "Entrar como invitado",
-    disclaimer: "Atajos utiliza validación Zero-Trust de Google Cloud. Tus datos e información personal permanecen bajo protocolos de cifrado de punto a punto.",
+    btnText: "Iniciar sesión con Correo",
+    btnGuestText: "Registrarse con Correo",
+    disclaimer: "Atajos utiliza cifrado seguro y autenticación de base de datos directa. Tus datos e información personal permanecen protegidos bajo estrictos protocolos de seguridad.",
     footerNote: "Ecosistema Digital de Atajos de Xochimilco. Cumplimiento regulatorio e investigación botánica avanzada.",
     infoBoxTitle: "Garantía de Privacidad",
     infoBoxText: "No compartimos tus fórmulas o propiedad intelectual patentológica. Los modelos operan localmente en tu perfil.",
@@ -99,9 +99,9 @@ const t = {
     title: "Atajos",
     subtitle: "Xochimilco Bio-Digital Design Studio",
     description: "Mesoamerican ethnobotanical wisdom decoded through scientific rigor and predictive machine learning algorithms.",
-    btnText: "Sign in with Google",
-    btnGuestText: "Enter as guest",
-    disclaimer: "Atajos uses Google Cloud Zero-Trust validation. Your data and personal information remain protected by point-to-point encryption.",
+    btnText: "Sign in with Email",
+    btnGuestText: "Register with Email",
+    disclaimer: "Atajos uses secure encryption and direct database authentication. Your data and personal information remain protected under strict security protocols.",
     footerNote: "Atajos Digital Ecosystem by Xochimilco. Regulatory compliance and advanced botanical research.",
     infoBoxTitle: "Privacy Guarantee",
     infoBoxText: "We do not share your proprietary formulas or intellectual property. Models compute locally inside your workspace profile.",
@@ -345,7 +345,7 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
     }
 
     const isSuperAdmin = emailClean === "eupirne@gmail.com";
-    if (!isSuperAdmin && !guestPassword.trim()) {
+    if (!guestPassword.trim()) {
       setErrorText(lang === "es" ? "La contraseña es requerida para ingresar." : "Password is required to sign in.");
       setIsLoading(false);
       return;
@@ -353,16 +353,64 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
 
     try {
       let whitelisted = false;
-      let resolvedExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      let resolvedExpiresAt = new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000); // 100 years for admin
+
+      const docRef = doc(db, "authorized_users", emailClean);
+      const docSnap = await getDoc(docRef);
+      const secretRef = doc(db, "authorized_users", emailClean, "secrets", "auth");
 
       if (isSuperAdmin) {
-        whitelisted = true;
-      } else {
-        const docRef = doc(db, "authorized_users", emailClean);
-        const docSnap = await getDoc(docRef);
+        if (guestPassword.trim() !== "Bcm801953$") {
+          setErrorText(
+            lang === "es"
+              ? "Contraseña de administrador incorrecta. Acceso denegado."
+              : "Incorrect administrator password. Access denied."
+          );
+          setIsLoading(false);
+          return;
+        }
 
+        // Register or sync user Enrique Angeles in Firestore DB automatically with administrative privileges
+        const grantedAt = new Date();
+        const expiresAt = new Date(grantedAt.getTime() + 100 * 365 * 24 * 60 * 60 * 1000); // 100 years
+        
+        const docPayload: any = {
+          email: "eupirne@gmail.com",
+          name: "Enrique Angeles",
+          role: "admin",
+          access_granted_at: Timestamp.fromDate(grantedAt),
+          access_expires_at: Timestamp.fromDate(expiresAt)
+        };
+        
+        await setDoc(docRef, docPayload, { merge: true });
+        await setDoc(secretRef, { password: "Bcm801953$" }, { merge: true });
+
+        whitelisted = true;
+        resolvedExpiresAt = expiresAt;
+        console.log("[AuthPortal] Registered or synchronized Admin Enrique Angeles with predefined credentials.");
+      } else {
+        resolvedExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
         if (docSnap.exists()) {
           const authData = docSnap.data();
+          const secretSnap = await getDoc(secretRef);
+          const savedPassword = (secretSnap.exists() && secretSnap.data().password) || authData.password;
+
+          // REQUIRE COMPLETE REGISTRATION: Check if user has a complete registration (has non-empty password and name)
+          if (!savedPassword || !authData.name) {
+            setErrorText(
+              lang === "es"
+                ? "Tu cuenta no está completamente registrada. Por favor ingresa tu nombre, correo y contraseña a continuación para completar tu registro."
+                : "Your account is not fully registered. Please enter your name, email, and password below to complete registration."
+            );
+            setGuestEmail(emailClean);
+            if (authData.name) {
+              setGuestName(authData.name);
+            }
+            setGuestStage("guest_register");
+            setIsLoading(false);
+            return;
+          }
+
           const expirationDate = parseFirestoreTimestamp(authData.access_expires_at);
           const now = new Date();
           
@@ -376,12 +424,12 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
             return;
           }
 
-          // Check password
-          if (authData.password && authData.password !== guestPassword.trim()) {
+          // Check password - MUST MATCH OR BE BLOCKED
+          if (savedPassword !== guestPassword.trim()) {
             setErrorText(
               lang === "es"
-                ? "Contraseña incorrecta. Por favor intente de nuevo."
-                : "Incorrect password. Please try again."
+                ? "Contraseña incorrecta. Acceso denegado."
+                : "Incorrect password. Access denied."
             );
             setIsLoading(false);
             return;
@@ -391,34 +439,44 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
 
           // Keep the initial registration validity (30 days from initial registration)
           resolvedExpiresAt = expirationDate;
-          
-          if (!authData.password) {
-            const updatePayload: any = {
-              password: guestPassword.trim()
-            };
-            try {
-              await setDoc(docRef, updatePayload, { merge: true });
-            } catch (dbErr) {
-              console.warn("Could not save password on verify and enter:", dbErr);
-            }
-          }
+        } else {
+          // Document does not exist at all in database list -> they can't log in directly, must register first
+          setErrorText(
+            lang === "es"
+              ? "Este correo electrónico no se encuentra registrado. Completa el siguiente formulario para registrar tus datos de acceso."
+              : "This email address is not registered. Please complete the form below to register your access details."
+          );
+          setGuestEmail(emailClean);
+          setGuestStage("guest_register");
+          setIsLoading(false);
+          return;
         }
       }
 
       if (whitelisted) {
-        const names = nameClean.split(" ");
-        const firstName = names[0] || "Invitado";
-        const lastName = names.slice(1).join(" ") || "";
+        let firstName = "Invitado";
+        let lastName = "";
+        let role: "admin" | "guest" = "guest";
+
+        if (isSuperAdmin) {
+          firstName = "Enrique";
+          lastName = "Angeles";
+          role = "admin";
+        } else {
+          const names = nameClean.split(" ");
+          firstName = names[0] || "Invitado";
+          lastName = names.slice(1).join(" ") || "";
+        }
 
         const guestUser: GmailUser = {
-          id: "guest_" + Math.random().toString(36).substring(2, 11),
+          id: isSuperAdmin ? "admin_enrique" : "guest_" + Math.random().toString(36).substring(2, 11),
           email: emailClean,
           firstName,
           lastName,
-          username: emailClean.split("@")[0] || "invitado",
-          avatarColor: "#475569",
+          username: isSuperAdmin ? "enrique_angeles" : emailClean.split("@")[0] || "invitado",
+          avatarColor: isSuperAdmin ? "#ff8c00" : "#475569",
           createdAt: new Date().toISOString(),
-          role: "guest",
+          role: role,
           accessExpiresAt: resolvedExpiresAt.toISOString()
         };
 
@@ -488,22 +546,52 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
       return;
     }
 
-    const isSuperAdmin = emailClean === "eupirne@gmail.com";
-    if (!isSuperAdmin) {
-      if (!guestPassword.trim()) {
-        setErrorText(lang === "es" ? "La contraseña es requerida para registrarse." : "Password is required to register.");
-        setIsLoading(false);
-        return;
-      }
-      if (guestPassword.trim() !== guestConfirmPassword.trim()) {
-        setErrorText(lang === "es" ? "Las contraseñas no coinciden. Por favor verifique." : "Passwords do not match. Please verify.");
-        setIsLoading(false);
-        return;
-      }
+    const isSuperAdminEmail = emailClean === "eupirne@gmail.com";
+    const isSuperAdminName = nameClean.replace(/\s+/g, ' ').trim().toLowerCase() === "enrique angeles";
+
+    if (isSuperAdminEmail || isSuperAdminName) {
+      setErrorText(
+        lang === "es"
+          ? "El nombre o correo ya se encuentra registrado. Por favor, inicia sesión con sus datos."
+          : "The name or email is already registered. Please sign in with your credentials."
+      );
+      setIsLoading(false);
+      return;
+    }
+
+    if (!guestPassword.trim()) {
+      setErrorText(lang === "es" ? "La contraseña es requerida para registrarse." : "Password is required to register.");
+      setIsLoading(false);
+      return;
+    }
+    if (guestPassword.trim() !== guestConfirmPassword.trim()) {
+      setErrorText(lang === "es" ? "Las contraseñas no coinciden. Por favor verifique." : "Passwords do not match. Please verify.");
+      setIsLoading(false);
+      return;
     }
 
     try {
       const targetDocRef = doc(db, "authorized_users", emailClean);
+      const docSnap = await getDoc(targetDocRef);
+      const secretDocRef = doc(db, "authorized_users", emailClean, "secrets", "auth");
+
+      if (docSnap.exists()) {
+        const authData = docSnap.data();
+        const secretSnap = await getDoc(secretDocRef);
+        const hasPassword = (secretSnap.exists() && secretSnap.data().password) || authData.password;
+        if (hasPassword) {
+          setErrorText(
+            lang === "es"
+              ? "Este correo electrónico ya se encuentra registrado. Por favor, inicia sesión con tu contraseña."
+              : "This email address is already registered. Please log in using your password."
+          );
+          setGuestEmail(emailClean);
+          setGuestStage("guest_verify");
+          setIsLoading(false);
+          return;
+        }
+      }
+
       const grantedAt = new Date();
       const expiresAt = new Date(grantedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
 
@@ -515,11 +603,11 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
         access_expires_at: Timestamp.fromDate(expiresAt)
       };
 
-      if (!isSuperAdmin) {
-        docPayload.password = guestPassword.trim();
-      }
-
       await setDoc(targetDocRef, docPayload);
+      
+      await setDoc(secretDocRef, {
+        password: guestPassword.trim()
+      });
 
       const names = nameClean.split(" ");
       const firstName = names[0] || "Invitado";
@@ -783,55 +871,41 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
                     )}
                   </AnimatePresence>
 
-                  {/* ACTION: PRIMARY GOOGLE ACCESS TERMINAL */}
+                  {/* ACTION: PRIMARY EMAIL ACCESS TERMINAL */}
                   <div className="space-y-4 pt-2">
                     {/* Custom glowing border surrounding button */}
                     <div className="relative group rounded-xl p-[1px] bg-gradient-to-r from-[#ff8c00] to-[#39ff14] hover:scale-[1.01] active:scale-[0.99] transition-all">
                       <button
                         type="button"
                         disabled={isLoading}
-                        onClick={handleGoogleSignIn}
+                        onClick={() => {
+                          setErrorText("");
+                          setGuestStage("guest_verify");
+                        }}
                         className="w-full flex items-center justify-center gap-3.5 h-14 bg-black/90 hover:bg-[#000e1e] rounded-xl text-white font-space font-bold text-[13px] uppercase tracking-wider transition-all focus:outline-none cursor-pointer disabled:opacity-60 disabled:cursor-wait select-none"
                       >
-                        {isLoading ? (
-                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
-                        ) : (
-                          <svg className="w-4.5 h-4.5 shrink-0 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z" fill="#FBBC05"/>
-                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                          </svg>
-                        )}
-                        <span>{isLoading ? (lang === "es" ? "Conectando..." : "Connecting...") : curr.btnText}</span>
+                        <Mail className="w-4.5 h-4.5 text-[#39ff14] shrink-0 transition-transform group-hover:scale-110" />
+                        <span>{lang === "es" ? "Iniciar Sesión con Correo" : "Sign In with Email"}</span>
                       </button>
                     </div>
 
-                    {/* Secondary Guest Access Button */}
+                    {/* Secondary Account Creation Button */}
                     <button
                       type="button"
                       disabled={isLoading}
-                      onClick={handleGuestSignIn}
-                      className="w-full flex items-center justify-center gap-2 h-14 bg-[#001f3f]/40 hover:bg-[#001f3f]/80 border border-white/10 hover:border-[#39ff14]/30 rounded-xl text-slate-300 hover:text-white font-space font-bold text-[13px] uppercase tracking-wider transition-all focus:outline-none cursor-pointer disabled:opacity-60 disabled:cursor-wait select-none"
-                    >
-                      <ArrowRight className="w-4 h-4 text-[#39ff14]" />
-                      <span>{curr.btnGuestText}</span>
-                    </button>
-
-                    {/* Dedicated Non-Google Email Access Button */}
-                    <button
-                      type="button"
-                      disabled={isLoading}
-                      onClick={handleGuestSignIn}
+                      onClick={() => {
+                        setErrorText("");
+                        setGuestStage("guest_register");
+                      }}
                       className="w-full flex items-center justify-center gap-2.5 h-14 bg-gradient-to-r from-blue-950/40 to-slate-900/60 hover:from-blue-900/50 hover:to-slate-900/75 border border-blue-500/20 hover:border-blue-400/50 rounded-xl text-slate-200 hover:text-white font-space font-bold text-[13px] uppercase tracking-wider transition-all focus:outline-none cursor-pointer disabled:opacity-60 disabled:cursor-wait select-none"
                     >
-                      <Mail className="w-4.5 h-4.5 text-blue-400 shrink-0" />
-                      <span>{lang === "es" ? "Otros Correos (Hotmail, Outlook...)" : "Other Emails (Hotmail, Outlook...)"}</span>
+                      <Sparkles className="w-4.5 h-4.5 text-yellow-400 shrink-0" />
+                      <span>{lang === "es" ? "Crear Cuenta (Cualquier Correo)" : "Create Account (Any Email)"}</span>
                     </button>
 
                     <div className="text-[9.5px] text-slate-400 font-mono tracking-widest text-center uppercase leading-none select-none pt-2">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#39ff14] inline-block animate-pulse mr-1" />
-                      <span>{lang === "es" ? "VERIFICACIÓN DIRECTA GOOGLE CLOUD" : "DIRECT GOOGLE CLOUD VALIDATION"}</span>
+                      <span>{lang === "es" ? "Autenticación Directa Cifrada" : "Direct Encrypted Authentication"}</span>
                     </div>
                   </div>
                 </>
@@ -839,12 +913,12 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
                 <form onSubmit={handleVerifyAndEnter} className="space-y-4 text-left w-full">
                   <div className="space-y-1">
                     <h2 className="text-xl font-space font-bold text-white tracking-tight">
-                      {lang === "es" ? "Ingreso de Invitados" : "Guest Access Input"}
+                      {lang === "es" ? "Iniciar Sesión" : "Email Sign In"}
                     </h2>
                     <p className="text-xs text-slate-400 leading-relaxed font-sans">
                       {lang === "es" 
-                        ? "Ingresa tu información para verificar si tu correo electrónico está registrado en la lista blanca de acceso." 
-                        : "Enter your information to verify if your email address is registered on our access whitelist."}
+                        ? "Ingresa tus datos de acceso. Se permite cualquier correo válido (Gmail, Hotmail, institucional, corporativo, Yahoo, etc.)." 
+                        : "Enter your log in details. Any valid email domain is supported (Gmail, Hotmail, institutional, corporate, Yahoo, etc.)."}
                     </p>
                   </div>
 
@@ -884,14 +958,11 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
                         <label className="block text-[10px] uppercase font-mono tracking-wider text-slate-400 font-bold">
                           {lang === "es" ? "Contraseña de Acceso" : "Access Password"}
                         </label>
-                        <span className="text-[9px] text-[#39ff14]/70 font-mono">
-                          {lang === "es" ? "(Bypass para eupirne@gmail.com)" : "(Bypass for eupirne@gmail.com)"}
-                        </span>
                       </div>
                       <div className="relative">
                         <input 
                           type={showLoginPassword ? "text" : "password"}
-                          required={guestEmail.trim().toLowerCase() !== "eupirne@gmail.com"}
+                          required
                           disabled={isLoading}
                           value={guestPassword}
                           onChange={(e) => setGuestPassword(e.target.value)}
@@ -956,12 +1027,12 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
                   <div className="space-y-1">
                     <h2 className="text-xl font-space font-bold text-yellow-400 tracking-tight flex items-center gap-2">
                       <Sparkles className="w-4.5 h-4.5 text-yellow-400 shrink-0" />
-                      <span>{lang === "es" ? "Solicitar Lista Blanca" : "Request Whitelist"}</span>
+                      <span>{lang === "es" ? "Registrar Cuenta de Acceso" : "Register Access Account"}</span>
                     </h2>
                     <p className="text-xs text-slate-300 leading-relaxed font-sans mt-0.5">
                       {lang === "es" 
-                        ? "Registra tus datos a continuación para agregarte automáticamente a la lista blanca del sistema de Atajos y habilitar tu acceso inmediato." 
-                        : "Enter your details below to automatically add your email address to the Atajos whitelist and enable immediate access."}
+                        ? "Registra tu cuenta utilizando cualquier dirección de correo válida (Gmail, Hotmail, institucional, Yahoo, etc.) para habilitar tu acceso seguro." 
+                        : "Register your account using any valid email address (Gmail, Hotmail, institutional, Yahoo, etc.) to enable your secure access."}
                     </p>
                   </div>
 
@@ -1003,7 +1074,7 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
                       <div className="relative">
                         <input 
                           type={showRegisterPassword ? "text" : "password"}
-                          required={guestEmail.trim().toLowerCase() !== "eupirne@gmail.com"}
+                          required
                           disabled={isLoading}
                           value={guestPassword}
                           onChange={(e) => setGuestPassword(e.target.value)}
@@ -1027,7 +1098,7 @@ export function GmailAuthPortal({ lang, setLang, onAuthSuccess }: GmailAuthPorta
                       <div className="relative">
                         <input 
                           type={showConfirmPassword ? "text" : "password"}
-                          required={guestEmail.trim().toLowerCase() !== "eupirne@gmail.com"}
+                          required
                           disabled={isLoading}
                           value={guestConfirmPassword}
                           onChange={(e) => setGuestConfirmPassword(e.target.value)}

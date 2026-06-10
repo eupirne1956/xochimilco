@@ -218,7 +218,7 @@ export default function App() {
     return new Date(val);
   };
 
-  // Automated notification when <= 2 days left
+  // Automated notification when <= 2 days left (Email dispatch disabled by user directive)
   useEffect(() => {
     if (!currentUser || currentUser.role === "admin" || currentUser.email === "eupirne@gmail.com") {
       return;
@@ -251,72 +251,11 @@ export default function App() {
           if (remainingDays > 0 && remainingDays <= 2.0) {
             setExpiryDaysLeft(remainingDays);
             setIsExpiryAlertOpen(true);
-
-            const alreadySent = authData.is_expiry_warning_sent === true || authData.warning_sent_2_days === true;
-            if (!alreadySent) {
-              console.log(`[Auto-Warning Engine] Initiating automated alert mail to ${emailClean}`);
-              setIsEmailSending(true);
-
-              const serviceId = (import.meta as any).env.VITE_EMAILJS_SERVICE_ID || "service_atajos";
-              const templateId = (import.meta as any).env.VITE_EMAILJS_TEMPLATE_ID || "template_expiry_warning";
-              const publicKey = (import.meta as any).env.VITE_EMAILJS_PUBLIC_KEY || "user_public_key_placeholder";
-
-              const daysStr = remainingDays.toFixed(1);
-              const subject = `⚠️ Alerta de Expiración de Acceso - Atajos Xochimilco`;
-              const textMessage = `Hola ${currentUser.firstName},\n\nEste es un aviso automático de que tu periodo de vigencia para Atajos (Estudio de Diseño Bio-Digital Xochimilco) vencerá pronto en aproximadamente ${daysStr} días.\n\nPor favor, ponte en contacto con el administrador (eupirne@gmail.com) para solicitar una extensión de vigencia y evitar la suspensión del servicio.\n\nAtentamente,\nEquipo de Atajos Xochimilco`;
-
-              try {
-                const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({
-                    service_id: serviceId,
-                    template_id: templateId,
-                    user_id: publicKey,
-                    template_params: {
-                      to_email: emailClean,
-                      to_name: currentUser.firstName,
-                      days_remaining: daysStr,
-                      subject: subject,
-                      message: textMessage,
-                      reply_to: "eupirne@gmail.com"
-                    },
-                  }),
-                });
-
-                if (response.ok) {
-                  console.log(`[Auto-Warning Engine] Expiry alert successfully sent to ${emailClean}.`);
-                  setEmailSentStatus("success");
-                } else {
-                  const errBody = await response.text();
-                  console.warn(`[Auto-Warning Engine] EmailJS integration error (requires setup):`, errBody);
-                  setEmailSentStatus("failed");
-                }
-              } catch (dispatchErr) {
-                console.error(`[Auto-Warning Engine] Network error during dispatch:`, dispatchErr);
-                setEmailSentStatus("failed");
-              } finally {
-                setIsEmailSending(false);
-
-                // Persist the status in Firestore so we don't repeat this network request
-                await setDoc(docRef, {
-                  is_expiry_warning_sent: true,
-                  warning_sent_2_days: true
-                }, { merge: true });
-
-                const updatedUser = { ...currentUser, is_expiry_warning_sent: true, warning_sent_2_days: true };
-                localStorage.setItem("xochimilco_logged_user", JSON.stringify(updatedUser));
-              }
-            } else {
-              // already sent, but let's sync status
-              setEmailSentStatus("success");
-            }
+            setEmailSentStatus("not_sent");
           }
         }
       } catch (err) {
-        console.error("Failed to check expiration or notify:", err);
+        console.error("Failed to check expiration warning:", err);
       }
     };
 
@@ -333,6 +272,19 @@ export default function App() {
   const [hoveredMode, setHoveredMode] = useState<string | null>(null);
   const [botanicalImage, setBotanicalImage] = useState<{ url: string; credit: string; sourceUrl: string } | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
+
+  const clearAllUserFields = () => {
+    setSearch("");
+    setResult(null);
+    setIsToolActive(false);
+    setActiveModule("xochimilco");
+    setBotanicalImage(null);
+    setSearchMode("standard");
+    setLoading(false);
+    setVeoLoading(false);
+    setIsVeoActive(false);
+    setVeoStepIndex(0);
+  };
 
   // Google VEO Video Generation Motion States
   const veoIntervalRef = useRef<any>(null);
@@ -427,12 +379,14 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [isToolActive]);
 
-  // Convierte la imagen automáticamente a video de Google VEO on load
+  // Convierte la imagen automáticamente a video de Google VEO on load (Desactivado por directiva de administración)
+  /*
   useEffect(() => {
     if (botanicalImage) {
       handleStartVeoAnimation();
     }
   }, [botanicalImage]);
+  */
 
   // Cleanup VEO interval on unmount
   useEffect(() => {
@@ -500,28 +454,12 @@ export default function App() {
   };
 
   const handleStartVeoAnimation = () => {
+    console.warn("[VEO Engine] Google VEO video generation is permanently deactivated by Administrator request.");
     if (veoIntervalRef.current) {
       clearInterval(veoIntervalRef.current);
     }
-    setVeoLoading(true);
-    setVeoStepIndex(0);
+    setVeoLoading(false);
     setIsVeoActive(false);
-
-    let currentStep = 0;
-    veoIntervalRef.current = setInterval(() => {
-      currentStep += 1;
-      if (currentStep < 5) {
-        setVeoStepIndex(currentStep);
-      } else {
-        if (veoIntervalRef.current) {
-          clearInterval(veoIntervalRef.current);
-          veoIntervalRef.current = null;
-        }
-        setVeoLoading(false);
-        setIsVeoActive(true);
-        setIsVeoPlay(true);
-      }
-    }, 1200);
   };
 
   const handleSuggestionClick = async (term: string, mode: "standard" | "phytochemistry" | "traditional" | "fingerprint") => {
@@ -668,6 +606,7 @@ export default function App() {
                               key={account.id}
                               onClick={() => {
                                 localStorage.setItem("xochimilco_logged_user", JSON.stringify(account));
+                                clearAllUserFields();
                                 setCurrentUser(account);
                                 setShowAccountSwitcher(false);
                                 setShowAdminPanel(false);
@@ -707,6 +646,7 @@ export default function App() {
 
                         <button
                           onClick={() => {
+                            clearAllUserFields();
                             setCurrentUser(null);
                             setShowAccountSwitcher(false);
                           }}
@@ -720,6 +660,7 @@ export default function App() {
                           onClick={() => {
                             auth.signOut().catch(console.error);
                             localStorage.removeItem("xochimilco_logged_user");
+                            clearAllUserFields();
                             const activeSessionAccounts = (JSON.parse(localStorage.getItem("xochimilco_session_accounts") || "[]") as GmailUser[])
                               .filter(u => u.id !== currentUser.id);
                             localStorage.setItem("xochimilco_session_accounts", JSON.stringify(activeSessionAccounts));
@@ -745,6 +686,7 @@ export default function App() {
                             auth.signOut().catch(console.error);
                             localStorage.removeItem("xochimilco_logged_user");
                             localStorage.removeItem("xochimilco_session_accounts");
+                            clearAllUserFields();
                             setCurrentUser(null);
                             setShowAccountSwitcher(false);
                             setShowAdminPanel(false);
@@ -865,7 +807,11 @@ export default function App() {
                 setLang={setLang} 
                 onAuthSuccess={(user) => {
                   setCurrentUser(user);
-                  setShowAdminPanel(false);
+                  if (user && (user.role === "admin" || user.email === "eupirne@gmail.com")) {
+                    setShowAdminPanel(true);
+                  } else {
+                    setShowAdminPanel(false);
+                  }
                 }} 
               />
             </motion.div>
@@ -1636,29 +1582,7 @@ export default function App() {
                                     {isVeoActive ? "GOOGLE VEO 3.1 ACTIVE" : "IA MEM STATS"}
                                   </span>
 
-                                  {/* Button to run VEO if not loaded yet */}
-                                  {!isVeoActive && !veoLoading && (
-                                    <button
-                                      type="button"
-                                      onClick={handleStartVeoAnimation}
-                                      className="bg-slate-950/90 hover:bg-[#39ff14]/20 hover:text-[#39ff14] text-white border border-[#39ff14]/30 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer shadow-lg active:scale-95 select-none"
-                                    >
-                                      <Film className="w-3.5 h-3.5 text-[#39ff14] animate-pulse" />
-                                      <span>{lang === "es" ? "Animar con Google VEO" : "Animate with Google VEO"}</span>
-                                    </button>
-                                  )}
 
-                                  {/* Button to restart animation / loop */}
-                                  {isVeoActive && (
-                                    <button
-                                      type="button"
-                                      onClick={handleStartVeoAnimation}
-                                      className="bg-slate-950/90 hover:bg-[#39ff14]/20 hover:text-[#39ff14] text-white border border-[#39ff14]/30 p-1.5 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg"
-                                      title={lang === "es" ? "Re-generar con VEO" : "Re-generate with VEO"}
-                                    >
-                                      <RefreshCw className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
                                 </div>
 
                                 {/* 2. Render Google VEO Progressive Loader Overlay */}
@@ -2056,89 +1980,29 @@ export default function App() {
                 {/* Status Box */}
                 <div className="w-full bg-slate-900/50 border border-white/5 rounded-xl p-4 flex flex-col gap-2.5 text-left font-sans text-xs">
                   <div className="flex justify-between items-center pb-2 border-b border-white/5 font-mono text-[10px] text-slate-400">
-                    <span>{lang === "es" ? "ESTADO DE NOTIFICACIÓN" : "NOTIFICATION STATUS"}</span>
+                    <span>{lang === "es" ? "AVISO DE VIGENCIA" : "LICENSE STATUS"}</span>
                     <span className="flex items-center gap-1.5">
-                      <span className={`w-1.5 h-1.5 rounded-full ${emailSentStatus === "success" ? "bg-[#39ff14]" : emailSentStatus === "failed" ? "bg-red-500 animate-pulse" : "bg-amber-500"} inline-block`} />
-                      {emailSentStatus === "success" 
-                        ? (lang === "es" ? "AVISO ENVIADO" : "ALERT DISPATCHED")
-                        : emailSentStatus === "failed" 
-                        ? (lang === "es" ? "FALLÓ ENVÍO" : "DISPATCH FAILED")
-                        : (lang === "es" ? "PROCESANDO..." : "PROCESSING...")}
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+                      <span>{lang === "es" ? "POR EXPIRAR" : "EXPIRING SOON"}</span>
                     </span>
                   </div>
 
                   <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
                     {lang === "es"
-                      ? "Un mensaje con la advertencia de vencimiento ha sido procesado automáticamente para ser enviado a tu correo. Usa los siguientes botones para verificar o reenviar."
-                      : "A message warning about your license expiration has been automatically processed to be sent to your email. Use the buttons below to check or resend."}
+                      ? "Los envíos de correos automatizados han sido deshabilitados por administración. No se despacharán correos electrónicos automáticos."
+                      : "Automated email notifications have been disabled by the administrator. No automatic emails will be transmitted."}
                   </p>
                 </div>
 
                 {/* Actions */}
                 <div className="w-full flex flex-col gap-2 pt-2">
-                  <button
-                    disabled={isEmailSending}
-                    onClick={async () => {
-                      setIsEmailSending(true);
-                      const serviceId = (import.meta as any).env.VITE_EMAILJS_SERVICE_ID || "service_atajos";
-                      const templateId = (import.meta as any).env.VITE_EMAILJS_TEMPLATE_ID || "template_expiry_warning";
-                      const publicKey = (import.meta as any).env.VITE_EMAILJS_PUBLIC_KEY || "user_public_key_placeholder";
-                      const daysStr = expiryDaysLeft ? expiryDaysLeft.toFixed(1) : "1.5";
-                      const textMessage = `Hola ${currentUser.firstName},\n\nEste es un aviso de que tu renovación para Atajos (Estudio de Diseño Bio-Digital Xochimilco) debe gestionarse pronto (quedan ${daysStr} días).\n\nContacto de soporte: eupirne@gmail.com`;
-
-                      try {
-                        const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            service_id: serviceId,
-                            template_id: templateId,
-                            user_id: publicKey,
-                            template_params: {
-                              to_email: currentUser.email,
-                              to_name: currentUser.firstName,
-                              days_remaining: daysStr,
-                              subject: `⚠️ Alerta de Expiración - Atajos Xochimilco`,
-                              message: textMessage,
-                              reply_to: "eupirne@gmail.com"
-                            }
-                          })
-                        });
-                        if (response.ok) {
-                          setEmailSentStatus("success");
-                        } else {
-                          setEmailSentStatus("failed");
-                        }
-                      } catch {
-                        setEmailSentStatus("failed");
-                      } finally {
-                        setIsEmailSending(false);
-                      }
-                    }}
-                    className={`w-full h-11 rounded-xl font-space font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 border cursor-pointer select-none transition-all active:scale-[0.98] ${
-                      emailSentStatus === "success" 
-                        ? "bg-slate-900 border-[#39ff14]/30 text-[#39ff14] hover:bg-[#39ff14]/5"
-                        : "bg-amber-500 hover:bg-amber-400 border-none text-slate-950"
-                    }`}
-                    id="btn-resend-expiry-warning"
-                  >
-                    <Mail className="w-4 h-4 shrink-0" />
-                    <span>
-                      {isEmailSending 
-                        ? (lang === "es" ? "Enviando..." : "Sending...") 
-                        : emailSentStatus === "success"
-                        ? (lang === "es" ? "Aviso Enviado con Éxito ✓" : "Alert Sent Successfully ✓")
-                        : (lang === "es" ? "Reintentar Envío a mi Correo" : "Retry Sending Email Alert")}
-                    </span>
-                  </button>
-
                   <a
-                    href={`mailto:${currentUser.email}?subject=Aviso%20de%20Expiraci%C3%B3n%20de%20Cuenta%20-%20Atajos&body=Hola%20${encodeURIComponent(currentUser.firstName)},%0D%0A%0D%0ATu%20licencia%20de%20acceso%20para%20Atajos%20vencer%C3%A1%20pronto%20(quedan%20${expiryDaysLeft ? expiryDaysLeft.toFixed(1) : "2"}%20d%C3%ADas).%0D%0A%0D%0APor%20favor%20contacta%20al%20administrador%20(eupirne@gmail.com)%20para%20solicitar%20un%20aumento%20de%20vigencia.%0D%0AAgradecemos%20tu%20investigaci%C3%B3n.%0D%0A%0D%0AEquipo%20Atajos%20Xochimilco`}
-                    className="w-full h-11 bg-slate-900 border border-white/10 hover:border-white/20 hover:bg-slate-800 text-slate-200 rounded-xl font-space font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98]"
+                    href={`mailto:eupirne@gmail.com?subject=Solicitud%20de%20Renovaci%C3%B3n%20de%20Acceso%20-%20Atajos&body=Hola%20Administrador,%0D%0A%0D%0AMi%20licencia%20de%20acceso%20para%20Atajos%20(${encodeURIComponent(currentUser.email)})%20vencer%C3%A1%20pronto%20(quedan%20${expiryDaysLeft ? expiryDaysLeft.toFixed(1) : "2"}%20d%C3%ADas).%0D%0A%0D%0APor%20favor%20conc%C3%A9deme%20un%20aumento%20de%20vigencia.%0D%0A%0D%0AAtentamente,%0D%0A${encodeURIComponent(currentUser.firstName)}`}
+                    className="w-full h-11 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl font-space font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98]"
                     id="btn-draft-expiry-warning"
                   >
                     <ExternalLink className="w-4 h-4 shrink-0" />
-                    <span>{lang === "es" ? "Abrir Correo de Respaldo Local" : "Open Local Backup Mail"}</span>
+                    <span>{lang === "es" ? "Contactar Administrador (Mailto)" : "Contact Administrator (Mailto)"}</span>
                   </a>
 
                   <button
